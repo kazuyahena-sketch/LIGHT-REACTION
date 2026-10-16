@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071218">
+  <meta name="description" content="เดินทางเข้าสู่เซลล์พืช แล้วเล่นไปกับปฏิกิริยาที่ต้องใช้แสงในการสังเคราะห์ด้วยแสง">
+  <title>LIGHT REACTION: ELECTRON TRAIN</title>
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <main class="game-shell" aria-label="เกม LIGHT REACTION: ELECTRON TRAIN">
+    <canvas id="world" aria-label="โลกจำลองเซลล์พืชและปฏิกิริยาใช้แสง"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <section class="intro-screen" id="intro-screen" aria-label="เริ่มเกม">
+      <div class="intro-grid" aria-hidden="true"></div><div class="intro-orbit orbit-a" aria-hidden="true"></div><div class="intro-orbit orbit-b" aria-hidden="true"></div>
+      <div class="intro-copy"><div class="intro-kicker"><i></i> สำรวจโลกจุลภาค · ระบบชีววิทยาพร้อมทำงาน</div><p class="intro-overline">ปฏิกิริยาที่ต้องใช้แสง</p><h2>LIGHT REACTION<span>:</span><br><em>ELECTRON TRAIN</em></h2><p class="intro-description">เข้าสู่โลกของโมเลกุลที่มีชีวิต ตามเส้นทางของแสง อิเล็กตรอน และโปรตอนจาก Thylakoid ไปสู่พลังงานที่เซลล์นำไปใช้</p>
+        <button class="start-game-button" type="button" data-start-game><span>เริ่มเกม</span><i>↗</i></button><div class="intro-footer"><span>การสังเคราะห์ด้วยแสง · ภารกิจสำรวจแบบโต้ตอบ</span><span>01 <b>/</b> 01</span></div></div>
+      <div class="intro-molecule molecule-a" aria-hidden="true">e⁻</div><div class="intro-molecule molecule-b" aria-hidden="true">H⁺</div><div class="intro-molecule molecule-c" aria-hidden="true">O₂</div>
+    </section>
+
+    <header class="topbar glass-panel">
+      <a class="brand" href="#" aria-label="หน้าเกม LIGHT REACTION ELECTRON TRAIN">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+         <span class="brand-copy"><strong>LIGHT REACTION</strong><small>เส้นทางอิเล็กตรอน <b>·</b> โหมดเดินทาง</small></span>
+      </a>
+      <div class="top-status"><span class="live-dot"></span><span>เดินทางในระดับจุลภาค</span></div>
+      <div class="progress-block" aria-label="ความคืบหน้าการเดินทาง">
+        <span class="progress-count" id="progress-count">00 <i>/ 22</i></span>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+    </header>
+
+    <section class="runner-hud glass-panel" id="runner-hud" aria-live="polite" aria-label="สถานะการเดินทาง">
+      <div class="runner-hud-top"><div><span class="runner-kicker">เส้นทางอิเล็กตรอน · <b id="runner-checkpoint-count">00 / 09</b></span><h2 id="runner-station">ตามแนวเยื่อ Thylakoid</h2></div><span class="electron-badge">e⁻</span></div>
+      <p id="runner-objective">กระโดดข้าม ROS แล้วไปยังจุดพัก PSII</p>
+      <div class="runner-progress"><div id="runner-progress-fill"></div></div>
+      <div class="runner-readouts"><span>ประจุรีดอกซ์ <b id="runner-energy">● ● ●</b></span><span>H⁺ ใน Lumen <b id="runner-protons">0</b></span></div>
+      <div class="runner-products"><span id="product-o2">O₂ · —</span><span id="product-nadph">NADPH · —</span><span id="product-atp">ATP · —</span></div>
+    </section>
+    <div class="runner-controls" id="runner-controls"><kbd>SPACE / ↑</kbd> กระโดด <kbd>↓</kbd> พุ่งลง <kbd>← →</kbd> ปรับความเร็ว <kbd>+ / −</kbd> ซูม</div>
+
+    <section class="stage-heading" aria-live="polite">
+      <div class="eyebrow"><span id="stage-index">00</span><span class="eyebrow-rule"></span><span id="stage-context">เตรียมเข้าสู่เซลล์พืช</span></div>
+      <h1 id="stage-title">เดินทางสู่<br><em>LIGHT REACTION</em></h1>
+    </section>
+
+    <aside class="legend glass-panel" id="world-legend" aria-label="โครงสร้างบริเวณที่เกิดปฏิกิริยา">
+      <span class="legend-title">ภาพตัดขวางบริเวณปฏิกิริยา</span>
+      <span><i class="legend-dot stroma-dot"></i>STROMA</span>
+      <span><i class="legend-dot membrane-dot"></i>THYLAKOID MEMBRANE</span>
+      <span><i class="legend-dot lumen-dot"></i>THYLAKOID LUMEN</span>
+    </aside>
+
+    <aside class="objective-card glass-panel" aria-live="polite">
+      <div class="card-kicker"><span class="target-icon">◎</span> ภารกิจปัจจุบัน</div>
+      <h2 id="objective-title">เข้าสู่เซลล์พืช</h2>
+      <p id="objective-copy">เริ่มเดินทางผ่านเซลล์ไปยังเยื่อ Thylakoid</p>
+      <div class="bio-readout" id="bio-readout"><span class="readout-indicator"></span><span>สัญญาณของกระบวนการ</span><b>รอสัญญาณ</b></div>
+    </aside>
+
+    <div class="journey-label" id="journey-label"><span class="journey-pulse"></span><span>ตามรอยพลังงาน</span></div>
+
+    <footer class="bottom-bar glass-panel">
+      <div class="explanation-block"><span class="card-kicker">บันทึกภาคสนาม <span id="note-number">01</span></span><p id="stage-explanation">พลังงานแสงเริ่มต้นการเดินทาง ตามเส้นทางจากเซลล์พืชสู่ Chloroplast</p></div>
+      <div class="footer-controls">
+        <div class="camera-hint"><kbd>ลาก</kbd> เลื่อนมุมมอง <kbd>เลื่อนล้อ</kbd> ซูม</div>
+        <button class="primary-button" id="advance-button" type="button"><span>เริ่มการเดินทาง</span><i aria-hidden="true">↗</i></button>
+      </div>
+    </footer>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <section class="macro-challenge-panel" id="macro-panel" aria-live="polite" aria-label="ภารกิจสำรวจเซลล์แบบโต้ตอบ" hidden></section>
+    <section class="minigame-panel" id="minigame-panel" aria-live="polite" aria-label="สถานีทดลองแบบโต้ตอบ" hidden></section>
+  </main>
+
+  <script src="src/core/event-bus.js"></script>
+  <script src="src/data/stages.js"></script>
+  <script src="src/data/stations.js"></script>
+  <script src="src/core/game-state.js"></script>
+  <script src="src/core/camera-controller.js"></script>
+  <script src="src/core/scene-transition.js"></script>
+  <script src="src/core/stage-manager.js"></script>
+  <script src="src/core/input-controller.js"></script>
+  <script src="src/animation/biology-animator.js"></script>
+  <script src="src/minigame/minigame-host.js"></script>
+  <script src="src/ui/minigame-panel.js"></script>
+  <script src="src/data/journey.js"></script>
+  <script src="src/gameplay/runner-controller.js"></script>
+  <script src="src/gameplay/journey-controller.js"></script>
+  <script src="src/ui/macro-challenge-panel.js"></script>
+  <script src="src/gameplay/macro-journey.js"></script>
+  <script src="src/audio/audio-hooks.js"></script>
+  <script src="src/vfx/vfx-hooks.js"></script>
+  <script src="src/ui/explanation-director.js"></script>
+  <script src="src/world/world-renderer.js"></script>
+  <script src="src/ui/hud-controller.js"></script>
+  <script src="src/ui/opening-sequence.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
