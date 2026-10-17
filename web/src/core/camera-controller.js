@@ -37,8 +37,8 @@
         const t = ease(tween.elapsed / tween.duration);
         this.x = tween.from.x + (tween.to.x - tween.from.x) * t;
         this.y = tween.from.y + (tween.to.y - tween.from.y) * t;
-        this.zoom = tween.from.zoom + (tween.to.zoom - tween.from.zoom) * t;
-        this.blur = tween.startBlur + Math.sin(t * Math.PI) * 1.15;
+        this.zoom = Math.exp(Math.log(tween.from.zoom) + (Math.log(tween.to.zoom) - Math.log(tween.from.zoom)) * t);
+        this.blur = tween.startBlur + Math.sin(t * Math.PI) * .75;
         if (tween.elapsed >= tween.duration) { this.x = tween.to.x; this.y = tween.to.y; this.zoom = tween.to.zoom; this.blur = 0; this.transition = null; }
       } else if (this.followTarget) {
         const target = typeof this.followTarget === 'function' ? this.followTarget() : this.followTarget;

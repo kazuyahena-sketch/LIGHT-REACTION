@@ -19,6 +19,8 @@
       this.width = 1; this.height = 1; this.dpr = 1; this.scale = 1; this.stars = Array.from({ length: 95 }, (_, index) => ({ x: (index * 193 + 37) % 1440, y: (index * 317 + 59) % 900, r: .4 + (index % 4) * .18, p: index * .41 }));
       this.journeyMode = false;
       this.backdropCanvas = document.createElement('canvas');
+      this.reactionBaseCanvas = null;
+      this.reactionBaseReady = false;
       this.membranePattern = document.createElement('canvas'); this.membranePattern.width = 960; this.membranePattern.height = 190;
       const pattern = this.membranePattern.getContext('2d');
       pattern.strokeStyle = 'rgba(107,220,205,.14)'; pattern.setLineDash([2, 12]);
@@ -43,6 +45,17 @@
     setJourneyMode(enabled) { if (this.journeyMode === enabled) return; this.journeyMode = enabled; this.resize(); }
     viewport() { return { width: this.width, height: this.height, scale: this.scale }; }
     render(timestamp, currentStage, transition, camera, gameState) {
+      const transitionSource = transition.active?.fromStage.id;
+      const transitionTarget = transition.active?.toStage.id;
+      const cinematicZoom = transition.isActive && (
+        (transitionSource === 'granum' && transitionTarget === 'thylakoid')
+        || (transitionSource === 'thylakoid' && transitionTarget === 'light-reaction')
+      );
+      const renderDpr = Math.min(window.devicePixelRatio || 1, this.journeyMode ? 1 : cinematicZoom ? 1.5 : 2);
+      if (renderDpr !== this.dpr) {
+        this.dpr = renderDpr;
+        this.canvas.width = Math.round(this.width * this.dpr); this.canvas.height = Math.round(this.height * this.dpr);
+      }
       const ctx = this.ctx; const time = timestamp / 1000;
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); ctx.clearRect(0, 0, this.width, this.height);
       ctx.drawImage(this.backdropCanvas, 0, 0, this.width, this.height);
@@ -52,11 +65,25 @@
       ctx.setTransform(dpr * viewportScale, 0, 0, dpr * viewportScale, dpr * this.width / 2, dpr * this.height / 2);
       ctx.translate(camera.shakeOffset.x, camera.shakeOffset.y); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x, -camera.y);
       const layers = transition.layers(currentStage);
+      const macroLayers = layers.filter(layer => layer.stage.scene === 'macro');
+      if (macroLayers.length === 2) {
+        const alpha = macroLayers[0].alpha + macroLayers[1].alpha * (1 - macroLayers[0].alpha);
+        ctx.save(); ctx.globalAlpha = alpha; ctx.filter = camera.blur > .01 ? `blur(${camera.blur}px)` : 'none';
+        this.drawMacroCommon(ctx, time);
+        ctx.restore();
+        for (const layer of macroLayers) {
+          if (layer.alpha <= .005) continue;
+          ctx.save(); ctx.globalAlpha = layer.alpha; ctx.filter = camera.blur > .01 ? `blur(${camera.blur}px)` : 'none';
+          this.drawMacroOverlay(ctx, layer.stage, gameState, time);
+          ctx.restore();
+        }
+      }
       for (const layer of layers) {
+        if (macroLayers.length === 2 && layer.stage.scene === 'macro') continue;
         if (layer.alpha <= .005) continue;
         ctx.save(); ctx.globalAlpha = layer.alpha; ctx.filter = camera.blur > .01 ? `blur(${camera.blur}px)` : 'none';
         if (layer.stage.scene === 'reaction' && this.journey?.worldStarted) this.drawJourneyWorld(ctx, layer.stage, gameState, time, camera);
-        else if (layer.stage.scene === 'reaction') this.drawReaction(ctx, layer.stage, gameState, time);
+        else if (layer.stage.scene === 'reaction') this.drawReaction(ctx, layer.stage, gameState, time, camera, transition);
         else this.drawMacro(ctx, layer.stage, gameState, time);
         ctx.restore();
       }
@@ -83,6 +110,10 @@
       ctx.restore();
     }
     drawMacro(ctx, stage, state, time) {
+      this.drawMacroCommon(ctx, time);
+      this.drawMacroOverlay(ctx, stage, state, time);
+    }
+    drawMacroCommon(ctx, time) {
       const cx = 720; const cy = 450;
       const ambient = ctx.createRadialGradient(865, 435, 40, 850, 445, 570); ambient.addColorStop(0, 'rgba(48,139,124,.14)'); ambient.addColorStop(1, 'rgba(8,30,36,0)');
       ctx.fillStyle = ambient; ctx.fillRect(-180, -180, 1800, 1260);
@@ -100,6 +131,9 @@
       ctx.fillStyle = '#80aeb0'; ctx.font = '10px "DM Mono", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText('นิวเคลียส', 485, 510);
       this.drawChloroplast(ctx, time);
       this.drawMacroRoute(ctx, time);
+    }
+    drawMacroOverlay(ctx, stage, state, time) {
+      const cx = 720; const cy = 450;
       const targets = [
         { id: 'cell', x: 620, y: 260, label: 'CELL', index: 1 },
         { id: 'chloroplast', x: 900, y: 330, label: 'CHLOROPLAST', index: 2 },
@@ -318,15 +352,31 @@
       ctx.globalAlpha = .52; ctx.beginPath(); ctx.arc(-15, 2, 4.3, 0, TAU); ctx.fill(); ctx.globalAlpha = .26; ctx.beginPath(); ctx.arc(-28, 5, 3, 0, TAU); ctx.fill();
       ctx.globalAlpha = .35; ctx.strokeStyle = '#dbff9e'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 13 + Math.sin(time * 4) * 2, 0, TAU); ctx.stroke(); ctx.restore();
     }
-    drawReaction(ctx, stage, state, time) {
-      const bg = ctx.createLinearGradient(0, 30, 0, 850); bg.addColorStop(0, 'rgba(19,53,51,.66)'); bg.addColorStop(.36, 'rgba(12,39,43,.76)'); bg.addColorStop(.62, 'rgba(9,30,45,.78)'); bg.addColorStop(1, 'rgba(8,23,38,.55)');
-      ctx.fillStyle = bg; roundRect(ctx, 36, 42, 1368, 800, 28); ctx.fill();
-      ctx.strokeStyle = 'rgba(115,202,188,.2)'; ctx.lineWidth = 1.2; roundRect(ctx, 36, 42, 1368, 800, 28); ctx.stroke();
-      this.drawRegionLabels(ctx); this.drawMembrane(ctx, time); this.drawReactionRails(ctx, time);
+    drawReaction(ctx, stage, state, time, camera, transition) {
+      if (!transition.isActive && camera.zoom <= 1.15) {
+        if (!this.reactionBaseReady) {
+          this.reactionBaseCanvas = document.createElement('canvas');
+          this.reactionBaseCanvas.width = 2880; this.reactionBaseCanvas.height = 1800;
+          const base = this.reactionBaseCanvas.getContext('2d');
+          base.scale(2, 2);
+          this.drawReactionBase(base, undefined, 2);
+          this.reactionBaseReady = true;
+        }
+        ctx.drawImage(this.reactionBaseCanvas, 0, 0, 1440, 900);
+        this.drawMembranePulse(ctx, time);
+      } else this.drawReactionBase(ctx, time);
+      this.drawReactionRails(ctx, time);
       this.drawPhotonEffects(ctx, stage, time, state); this.drawElectronParticle(ctx, time); this.drawProtons(ctx, time, stage);
       this.drawOxygen(ctx, time, state); this.drawStations(ctx, stage, state, time); this.drawOEC(ctx, state, time);
       this.drawProductLinks(ctx, stage, state, time); this.drawProductInventory(ctx, state, time);
       this.drawReactionAnnotations(ctx, stage);
+    }
+    drawReactionBase(ctx, time, blurScale = 1) {
+      const bg = ctx.createLinearGradient(0, 30, 0, 850); bg.addColorStop(0, 'rgba(19,53,51,.66)'); bg.addColorStop(.36, 'rgba(12,39,43,.76)'); bg.addColorStop(.62, 'rgba(9,30,45,.78)'); bg.addColorStop(1, 'rgba(8,23,38,.55)');
+      ctx.fillStyle = bg; roundRect(ctx, 36, 42, 1368, 800, 28); ctx.fill();
+      ctx.strokeStyle = 'rgba(115,202,188,.2)'; ctx.lineWidth = 1.2; roundRect(ctx, 36, 42, 1368, 800, 28); ctx.stroke();
+      this.drawRegionLabels(ctx); this.drawMembraneBase(ctx, blurScale);
+      if (Number.isFinite(time)) this.drawMembranePulse(ctx, time);
     }
     drawRegionLabels(ctx) {
       ctx.save(); ctx.font = '10px "DM Mono", Consolas, monospace'; ctx.letterSpacing = '2px'; ctx.textAlign = 'left';
@@ -337,13 +387,19 @@
       ctx.fillStyle = 'rgba(135,184,216,.47)'; ctx.fillText('แหล่งสะสมโปรตอน', 79, 831); ctx.restore();
     }
     drawMembrane(ctx, time) {
+      this.drawMembraneBase(ctx);
+      this.drawMembranePulse(ctx, time);
+    }
+    drawMembraneBase(ctx, blurScale = 1) {
       const gradient = ctx.createLinearGradient(0, 365, 0, 550); gradient.addColorStop(0, 'rgba(36,126,116,.62)'); gradient.addColorStop(.18, 'rgba(21,81,85,.91)'); gradient.addColorStop(.54, 'rgba(20,66,75,.96)'); gradient.addColorStop(1, 'rgba(35,117,115,.63)');
-      ctx.save(); ctx.shadowColor = 'rgba(63,221,198,.19)'; ctx.shadowBlur = 26; ctx.fillStyle = gradient; roundRect(ctx, 58, 365, 1324, 185, 44); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.shadowColor = 'rgba(63,221,198,.19)'; ctx.shadowBlur = 26 * blurScale; ctx.fillStyle = gradient; roundRect(ctx, 58, 365, 1324, 185, 44); ctx.fill(); ctx.restore();
       ctx.strokeStyle = 'rgba(114,229,206,.47)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(85, 383); ctx.bezierCurveTo(430, 366, 945, 396, 1354, 378); ctx.stroke();
       ctx.strokeStyle = 'rgba(139,221,197,.23)'; ctx.beginPath(); ctx.moveTo(85, 533); ctx.bezierCurveTo(480, 552, 988, 520, 1354, 539); ctx.stroke();
       ctx.strokeStyle = 'rgba(125,234,212,.11)'; ctx.lineWidth = 1; ctx.setLineDash([2, 12]);
       for (let x = 115; x < 1375; x += 18) { ctx.beginPath(); ctx.moveTo(x, 397); ctx.lineTo(x + 2, 516); ctx.stroke(); }
       ctx.setLineDash([]);
+    }
+    drawMembranePulse(ctx, time) {
       ctx.save(); ctx.globalAlpha = .34 + .08 * Math.sin(time * 1.3); ctx.strokeStyle = '#9ff3d7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(86, 458); ctx.lineTo(1354, 458); ctx.stroke(); ctx.restore();
     }
     drawReactionRails(ctx, time) {

@@ -9,8 +9,8 @@ The game runs directly in a modern browser using Canvas 2D and DOM APIs. There i
 This is a browser Canvas 2D project rather than a Godot project, so Godot's profiler and node counters do not apply. Browser Performance and tracing tools were used to inspect the frame loop, script time, style/layout work, JavaScript heap, and Canvas raster activity. The browser does not expose a stable GPU percentage or Canvas draw-call count for this app.
 
 - The game loop stays idle on the start screen, pauses when the document is hidden, and stops after the completion effects finish. During play, HUD values refresh at about 12.5 Hz instead of writing DOM values every frame.
-- The cinematic camera tour keeps its normal device-pixel ratio. The side-scrolling Canvas caps its internal render scale at 1×; HTML controls and labels remain browser-rendered and sharp.
-- The static backdrop and membrane pattern are cached. Off-screen stations and hazards are culled; ambient particles and Canvas shadow blur are limited to preserve the molecular glow without a full-screen effect.
+- The cinematic camera tour normally uses up to 2× device-pixel ratio, with the Granum → Thylakoid → Light Reaction transitions capped at 1.5×; the side-scrolling Canvas remains capped at 1×. HTML controls and labels remain browser-rendered and sharp.
+- The static backdrop, membrane pattern, and stable reaction-scene base are cached. Macro crossfades draw their shared scene once; off-screen stations and hazards are culled, and Canvas shadow blur is limited to preserve the molecular glow without a full-screen effect.
 - The project has no external textures, shader files, or always-running particle nodes. The intro still uses its zoom tour, and the side world keeps focused electron, proton, and station effects.
 - Thai UI uses the system Leelawadee UI / Tahoma font stack and keeps scientific names such as PSII, PQ, FNR, ATP, NADPH, and H⁺ in their standard form.
 
