@@ -16,7 +16,7 @@
     onPointerDown(event) {
       if (this.journey?.worldStarted && this.runner?.running) {
         this.pointer = event.pointerId; this.dragged = false; this.lastPointer = { x: event.clientX, y: event.clientY };
-        this.canvas.setPointerCapture(event.pointerId); return;
+        this.canvas.setPointerCapture(event.pointerId); this.runner.flap(); return;
       }
       this.pointer = event.pointerId; this.dragged = false; this.lastPointer = { x: event.clientX, y: event.clientY };
       this.canvas.setPointerCapture(event.pointerId);
@@ -34,7 +34,6 @@
     onPointerUp(event) {
       if (this.pointer !== event.pointerId) return;
       if (this.journey?.worldStarted) {
-        if (!this.dragged && this.runner?.running) this.runner.jump();
         this.pointer = null; this.lastPointer = null; this.canvas.style.cursor = 'default'; return;
       }
       if (this.isInputLocked()) { this.pointer = null; this.lastPointer = null; return; }
@@ -47,7 +46,7 @@
     }
     onWheel(event) {
       event.preventDefault();
-      if (this.isInputLocked()) return;
+      if (this.isInputLocked() || this.journey?.worldStarted) return;
       const rect = this.canvas.getBoundingClientRect(); const viewport = this.getViewport();
       this.camera.zoomAt(Math.exp(-event.deltaY * .001), event.clientX - rect.left, event.clientY - rect.top, viewport.width, viewport.height, viewport.scale);
     }
@@ -55,12 +54,7 @@
       if (event.defaultPrevented || this.isInputLocked()) return;
       if (event.target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'BUTTON'].includes(event.target.tagName) || event.target.closest('#minigame-panel'))) return;
       if (this.journey?.worldStarted) {
-        if (event.key === '+' || event.key === '=') { this.camera.zoomBy(1.12); event.preventDefault(); return; }
-        if (event.key === '-') { this.camera.zoomBy(1 / 1.12); event.preventDefault(); return; }
-        if (event.key === '0' && this.runner) {
-          this.camera.focus({ x: this.runner.player.x + 260, y: 450, zoom: .86 }, .5);
-          this.camera.setFollow(() => ({ x: this.runner.player.x + 260, y: 450 })); event.preventDefault(); return;
-        }
+        if (event.key === '+' || event.key === '=' || event.key === '-' || event.key === '0') { event.preventDefault(); return; }
         if (this.runner?.running && this.runner.keyDown(event.code, event.repeat)) event.preventDefault();
         return;
       }

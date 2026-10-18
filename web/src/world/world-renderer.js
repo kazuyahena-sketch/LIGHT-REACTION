@@ -25,6 +25,31 @@
     [{ x: 540, y: 490 }, { x: 545, y: 570 }, { x: 570, y: 635 }, { x: 590, y: 700 }],
     [{ x: 620, y: 700 }, { x: 695, y: 650 }, { x: 740, y: 565 }, { x: 760, y: 455 }, { x: 773, y: 375 }]
   ];
+  const runnerSprite = [
+    '....NNNNNNN....',
+    '..NNBBBBBBBNN..',
+    '.NBBBBBBBBBBBN.',
+    'NBBBBBBBBBBBBBN',
+    'NBBBBEBBBBBBBBN',
+    'NBBBBEPBEPBBBBN',
+    'NBBBBEPBEPBBBBN',
+    'NBBBBBCHBBBBBBN',
+    '.NBBBBBBBBBBBN.',
+    '..NBBBBBBBBBN..',
+    '...NBBBBBBBN...',
+    '....NBBBBBN....',
+    '...NN.....NN...',
+    '..NN.......NN..',
+    '..NN.......NN..'
+  ];
+  const tunnelProteinIds = new Set(root.LightReaction.JourneyCheckpoints.filter(checkpoint => checkpoint.tunnel).map(checkpoint => checkpoint.id));
+  const tunnelPalettes = {
+    psii: ['#286f69', '#174650', '#87d99e', '#e1e891'],
+    cytochrome: ['#805348', '#4d3746', '#e6a16d', '#f1d18c'],
+    psi: ['#376d91', '#294c72', '#8ecce0', '#d2ed9c'],
+    fnr: ['#68558b', '#3c3d69', '#c3a0e7', '#f3db9f'],
+    'atp-synthase': ['#328675', '#205565', '#a0e4a3', '#e4ed9c']
+  };
 
   class WorldRenderer {
     constructor(canvas, stations, animator, vfx) {
@@ -33,11 +58,13 @@
       this.width = 1; this.height = 1; this.dpr = 1; this.scale = 1; this.stars = Array.from({ length: 95 }, (_, index) => ({ x: (index * 193 + 37) % 1440, y: (index * 317 + 59) % 900, r: .4 + (index % 4) * .18, p: index * .41 }));
       this.journeyMode = false;
       this.backdropCanvas = document.createElement('canvas');
+      this.journeyBackdropCanvas = document.createElement('canvas');
       this.macroAmbientCanvas = document.createElement('canvas');
       this.macroArtworkCanvas = document.createElement('canvas');
       this.transitionRendering = false;
       this.reactionBaseCanvas = null;
       this.reactionBaseReady = false;
+      this.proteinCache = new Map();
       this.membranePattern = document.createElement('canvas'); this.membranePattern.width = 960; this.membranePattern.height = 190;
       const pattern = this.membranePattern.getContext('2d');
       pattern.strokeStyle = 'rgba(107,220,205,.14)'; pattern.setLineDash([2, 12]);
@@ -46,12 +73,16 @@
       for (let x = 0; x < this.membranePattern.width; x += 48) {
         pattern.fillStyle = 'rgba(143,224,197,.45)'; pattern.beginPath(); pattern.ellipse(x, 21, 5, 3, 0, 0, TAU); pattern.fill();
         pattern.fillStyle = 'rgba(108,185,191,.35)'; pattern.beginPath(); pattern.ellipse(x + 20, 171, 5, 3, 0, 0, TAU); pattern.fill();
+        pattern.fillStyle = 'rgba(195,244,177,.24)'; pattern.fillRect(x + 8, 38, 3, 4); pattern.fillRect(x + 30, 147, 3, 4);
+        pattern.fillStyle = 'rgba(54,129,127,.4)'; pattern.fillRect(x + 13, 45, 2, 96); pattern.fillRect(x + 35, 50, 2, 86);
       }
-      this.resize(); this.buildMacroCache(); this.buildReactionBaseCache(); window.addEventListener('resize', () => this.resize());
+      this.resize(); this.buildJourneyBackdrop(); this.buildMacroCache(); this.buildReactionBaseCache(); this.buildProteinCaches(); window.addEventListener('resize', () => this.resize());
     }
     resize() {
       const rect = this.canvas.getBoundingClientRect(); this.width = Math.max(1, rect.width); this.height = Math.max(1, rect.height);
-      this.dpr = Math.min(window.devicePixelRatio || 1, this.journeyMode ? 1 : 2); this.canvas.width = Math.round(this.width * this.dpr); this.canvas.height = Math.round(this.height * this.dpr);
+      const pixelScale = this.journeyMode ? 1 : (window.devicePixelRatio || 1);
+      this.dpr = Math.min(pixelScale, this.journeyMode ? 1 : 2); this.canvas.width = Math.max(1, Math.round(this.width * this.dpr)); this.canvas.height = Math.max(1, Math.round(this.height * this.dpr));
+      this.ctx.imageSmoothingEnabled = true;
       this.scale = Math.max(this.width / 1440, this.height / 900);
       const ratio = Math.min(1, 960 / this.width); this.backdropCanvas.width = Math.max(1, Math.round(this.width * ratio)); this.backdropCanvas.height = Math.max(1, Math.round(this.height * ratio));
       const bg = this.backdropCanvas.getContext('2d'); const radius = Math.max(this.backdropCanvas.width, this.backdropCanvas.height) * .78;
@@ -59,8 +90,94 @@
       gradient.addColorStop(0, '#102733'); gradient.addColorStop(.5, '#0a1921'); gradient.addColorStop(1, '#061116');
       bg.fillStyle = gradient; bg.fillRect(0, 0, this.backdropCanvas.width, this.backdropCanvas.height);
     }
-    setJourneyMode(enabled) { if (this.journeyMode === enabled) return; this.journeyMode = enabled; this.resize(); }
+    setJourneyMode(enabled) {
+      if (this.journeyMode === enabled) return;
+      this.journeyMode = enabled; this.canvas.style.imageRendering = ''; this.resize();
+    }
     viewport() { return { width: this.width, height: this.height, scale: this.scale }; }
+    buildJourneyBackdrop() {
+      const tile = this.journeyBackdropCanvas;
+      tile.width = 960; tile.height = 900;
+      const ctx = tile.getContext('2d');
+      const stroma = ctx.createLinearGradient(0, 0, 0, 365); stroma.addColorStop(0, '#102a29'); stroma.addColorStop(1, '#183c39');
+      const membrane = ctx.createLinearGradient(0, 360, 0, 560); membrane.addColorStop(0, '#26756a'); membrane.addColorStop(.16, '#123d3e'); membrane.addColorStop(.52, '#12363d'); membrane.addColorStop(.85, '#174b50'); membrane.addColorStop(1, '#318477');
+      const lumen = ctx.createLinearGradient(0, 550, 0, 900); lumen.addColorStop(0, '#133c4d'); lumen.addColorStop(1, '#091c30');
+      ctx.fillStyle = stroma; ctx.fillRect(0, 0, 960, 365); ctx.fillStyle = membrane; ctx.fillRect(0, 365, 960, 190); ctx.fillStyle = lumen; ctx.fillRect(0, 555, 960, 345);
+      const haze = ctx.createRadialGradient(480, 445, 30, 480, 445, 750); haze.addColorStop(0, 'rgba(87,201,164,.12)'); haze.addColorStop(1, 'rgba(5,18,29,0)');
+      ctx.fillStyle = haze; ctx.fillRect(0, 0, 960, 900);
+      for (let x = 18; x < 960; x += 48) {
+        ctx.fillStyle = x % 96 ? 'rgba(111,225,197,.08)' : 'rgba(205,246,147,.08)';
+        ctx.fillRect(x, 118 + (x % 7) * 21, 3, 3);
+        ctx.fillRect(x + 13, 640 + (x % 5) * 18, 2, 2);
+      }
+      for (let x = 22; x < 960; x += 64) {
+        const y = 86 + (x % 5) * 38;
+        ctx.fillStyle = 'rgba(15,55,57,.55)'; ctx.fillRect(x, y, 44, 18); ctx.fillRect(x + 8, y - 7, 31, 7);
+        ctx.fillStyle = 'rgba(48,120,105,.62)'; ctx.fillRect(x + 4, y + 3, 36, 11); ctx.fillRect(x + 11, y - 3, 22, 6);
+        ctx.fillStyle = 'rgba(104,198,151,.48)'; ctx.fillRect(x + 9, y + 5, 12, 3); ctx.fillRect(x + 26, y + 11, 10, 3);
+        ctx.fillStyle = 'rgba(215,240,143,.48)'; ctx.fillRect(x + 15, y + 1, 4, 3); ctx.fillRect(x + 32, y + 7, 3, 3);
+      }
+      for (let x = 36; x < 960; x += 96) {
+        const y = 626 + (x % 4) * 42;
+        ctx.fillStyle = 'rgba(16,52,69,.6)'; ctx.fillRect(x, y, 31, 24); ctx.fillRect(x + 6, y - 7, 20, 7);
+        ctx.fillStyle = 'rgba(47,116,129,.58)'; ctx.fillRect(x + 4, y + 4, 23, 15);
+        ctx.fillStyle = 'rgba(114,192,187,.48)'; ctx.fillRect(x + 7, y + 6, 4, 9); ctx.fillRect(x + 17, y + 8, 5, 7);
+        ctx.fillStyle = 'rgba(195,226,139,.5)'; ctx.fillRect(x + 12, y + 3, 4, 3);
+      }
+      ctx.fillStyle = 'rgba(123,228,201,.13)'; ctx.fillRect(0, 377, 960, 2); ctx.fillRect(0, 545, 960, 2);
+      this.drawPixelEnvironment(ctx);
+    }
+    drawPixelEnvironment(ctx) {
+      const organelles = [
+        { x: 96, y: 166, scale: .78 }, { x: 386, y: 280, scale: .62 },
+        { x: 696, y: 196, scale: .88 }, { x: 850, y: 660, scale: .72 }
+      ];
+      for (const organelle of organelles) {
+        ctx.save(); ctx.globalAlpha = .64; ctx.translate(organelle.x, organelle.y); ctx.scale(organelle.scale, organelle.scale);
+        ctx.fillStyle = '#123d3d';
+        ctx.fillRect(8, 8, 110, 18); ctx.fillRect(0, 20, 134, 38); ctx.fillRect(12, 58, 108, 18);
+        ctx.fillStyle = '#277569'; ctx.fillRect(12, 14, 100, 12); ctx.fillRect(4, 26, 126, 26); ctx.fillRect(16, 54, 100, 14);
+        ctx.fillStyle = '#49a884'; ctx.fillRect(22, 20, 82, 7); ctx.fillRect(9, 31, 42, 6); ctx.fillRect(62, 31, 55, 6);
+        ctx.fillRect(20, 43, 94, 6); ctx.fillRect(28, 57, 75, 7);
+        ctx.fillStyle = '#67c695'; ctx.fillRect(26, 35, 5, 4); ctx.fillRect(42, 46, 9, 3); ctx.fillRect(100, 27, 6, 4);
+        ctx.fillStyle = '#b5dd79'; ctx.fillRect(32, 30, 8, 4); ctx.fillRect(88, 41, 7, 4); ctx.fillRect(53, 57, 8, 4);
+        ctx.fillStyle = 'rgba(184,247,225,.6)'; ctx.fillRect(8, 20, 4, 20); ctx.fillRect(124, 32, 4, 16);
+        ctx.fillStyle = '#164c50'; ctx.fillRect(10, 17, 15, 4); ctx.fillRect(108, 55, 16, 4);
+        ctx.fillStyle = '#8ad7a1'; ctx.fillRect(16, 25, 5, 3); ctx.fillRect(56, 34, 4, 3); ctx.fillRect(115, 45, 5, 3);
+        ctx.fillStyle = '#b2e8aa'; ctx.fillRect(16, 62, 11, 3); ctx.fillRect(40, 66, 6, 3); ctx.fillRect(97, 17, 13, 3);
+        ctx.restore();
+      }
+      const particles = [
+        [63, 109, 7, '#c8ee83'], [224, 234, 5, '#75d9d0'], [333, 102, 6, '#f4d877'],
+        [546, 214, 8, '#74d6c4'], [630, 92, 5, '#d8ed8b'], [788, 312, 7, '#76bfe0'],
+        [920, 153, 6, '#ec9db4'], [168, 760, 6, '#6fc3de'], [428, 702, 5, '#c9e77b'],
+        [664, 810, 7, '#72cfd0']
+      ];
+      for (let i = 0; i < particles.length; i++) {
+        const [x, y, size, color] = particles[i];
+        ctx.fillStyle = 'rgba(5,22,31,.8)'; ctx.fillRect(x - 3, y - 3, size + 6, size + 6);
+        ctx.fillStyle = color; ctx.fillRect(x, y, size, size);
+        ctx.fillStyle = 'rgba(239,255,190,.78)'; ctx.fillRect(x + 2, y + 1, Math.max(2, size - 4), 2);
+      }
+      for (let x = 18; x < 960; x += 24) {
+        const y = 368 + (x % 5) * 3;
+        ctx.fillStyle = '#286f6c'; ctx.fillRect(x, y + 4, 7, 15); ctx.fillRect(x + 3, y + 2, 2, 4);
+        ctx.fillStyle = x % 48 ? '#5ec7a4' : '#9adf9d'; ctx.fillRect(x, y, 7, 7);
+        ctx.fillStyle = '#d7f39c'; ctx.fillRect(x + 2, y + 1, 3, 3);
+        ctx.fillStyle = '#174e52'; ctx.fillRect(x - 2, y + 9, 11, 2);
+        const lowerY = 542 - (x % 4) * 2;
+        ctx.fillStyle = '#286f6c'; ctx.fillRect(x + 11, lowerY - 11, 7, 11);
+        ctx.fillStyle = '#47a6a3'; ctx.fillRect(x + 11, lowerY - 5, 7, 7);
+        ctx.fillStyle = '#99db9c'; ctx.fillRect(x + 13, lowerY - 4, 3, 3);
+      }
+      for (let i = 0; i < 4; i++) {
+        const x = 125 + i * 226;
+        ctx.fillStyle = 'rgba(16,54,67,.8)'; ctx.fillRect(x, 672, 38, 88); ctx.fillRect(x - 10, 682, 58, 18);
+        ctx.fillStyle = '#347d86'; ctx.fillRect(x + 5, 678, 28, 72); ctx.fillRect(x - 5, 688, 48, 7);
+        ctx.fillStyle = '#85d9c2'; ctx.fillRect(x + 11, 686, 5, 52); ctx.fillRect(x + 22, 702, 5, 42);
+        ctx.fillStyle = '#dcf18b'; ctx.fillRect(x + 17, 694, 5, 5); ctx.fillRect(x + 17, 712, 5, 5);
+      }
+    }
     render(timestamp, currentStage, transition, camera, gameState) {
       const transitionSource = transition.active?.fromStage.id;
       const transitionTarget = transition.active?.toStage.id;
@@ -68,10 +185,13 @@
         (transitionSource === 'granum' && transitionTarget === 'thylakoid')
         || (transitionSource === 'thylakoid' && transitionTarget === 'light-reaction')
       );
-      const renderDpr = Math.min(window.devicePixelRatio || 1, this.journeyMode ? 1 : cinematicZoom ? 1.5 : 2);
+      const renderDpr = this.journeyMode
+        ? 1
+        : Math.min(window.devicePixelRatio || 1, cinematicZoom ? 1.5 : 2);
       if (renderDpr !== this.dpr) {
         this.dpr = renderDpr;
-        this.canvas.width = Math.round(this.width * this.dpr); this.canvas.height = Math.round(this.height * this.dpr);
+        this.canvas.width = Math.max(1, Math.round(this.width * this.dpr)); this.canvas.height = Math.max(1, Math.round(this.height * this.dpr));
+        this.ctx.imageSmoothingEnabled = true;
       }
       const ctx = this.ctx; const time = timestamp / 1000;
       this.transitionRendering = transition.isActive;
@@ -81,10 +201,14 @@
       if (!journeyWorld) this.drawStars(ctx, time);
       const viewportScale = this.scale; const dpr = this.dpr;
       ctx.setTransform(dpr * viewportScale, 0, 0, dpr * viewportScale, dpr * this.width / 2, dpr * this.height / 2);
-      ctx.translate(camera.shakeOffset.x, camera.shakeOffset.y); ctx.scale(camera.zoom, camera.zoom); ctx.translate(-camera.x, -camera.y);
+      ctx.translate(camera.shakeOffset.x, camera.shakeOffset.y); ctx.scale(camera.zoom, camera.zoom);
+      const snap = this.journeyMode ? 1 / (dpr * viewportScale * camera.zoom) : 0;
+      const cameraX = snap ? Math.round(camera.x / snap) * snap : camera.x;
+      const cameraY = snap ? Math.round(camera.y / snap) * snap : camera.y;
+      ctx.translate(-cameraX, -cameraY);
       const layers = transition.layers(currentStage);
       const macroLayers = layers.length === 2 && layers[0].stage.scene === 'macro' && layers[1].stage.scene === 'macro' ? layers : null;
-      const filter = cinematicZoom || camera.blur <= .01 ? 'none' : `blur(${camera.blur}px)`;
+      const filter = this.journeyMode || cinematicZoom || camera.blur <= .01 ? 'none' : `blur(${camera.blur}px)`;
       if (macroLayers) {
         const alpha = macroLayers[0].alpha + macroLayers[1].alpha * (1 - macroLayers[0].alpha);
         ctx.save(); ctx.globalAlpha = alpha; ctx.filter = filter;
@@ -106,7 +230,7 @@
         else this.drawMacro(ctx, layer.stage, gameState, time);
         ctx.restore();
       }
-      ctx.save(); ctx.filter = 'none'; this.vfx.draw(ctx); ctx.restore();
+      ctx.save(); ctx.filter = 'none'; this.vfx.draw(ctx, this.journeyMode); ctx.restore();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.drawFrameGuides(ctx, currentStage, time);
     }
@@ -213,6 +337,29 @@
       ctx.fillStyle = '#83e2ae'; ctx.font = '8px "DM Mono", Consolas, monospace'; ctx.fillText('THYLAKOID', 0, 78);
       for (let i = -2; i <= 2; i++) { ctx.fillStyle = '#4ba182'; ctx.beginPath(); ctx.ellipse(i * 11, i % 2 * 3, 10, 26, 0, 0, TAU); ctx.fill(); }
       ctx.restore();
+      this.drawMacroPixelDetails(ctx);
+    }
+    drawMacroPixelDetails(ctx) {
+      const cx = 720; const cy = 450;
+      for (let i = 0; i < 36; i++) {
+        const angle = i * TAU / 36;
+        const x = cx + Math.cos(angle) * 548;
+        const y = cy + Math.sin(angle) * 336;
+        ctx.fillStyle = i % 3 ? 'rgba(103,208,176,.48)' : 'rgba(208,239,143,.62)';
+        ctx.fillRect(Math.round(x), Math.round(y), i % 2 ? 5 : 8, 3);
+      }
+      for (let stack = 0; stack < 4; stack++) {
+        const x = 808 + stack * 65;
+        for (let disk = 0; disk < 5; disk++) {
+          const y = 391 + Math.sin(stack * .7) * 12 + disk * 15;
+          ctx.fillStyle = disk % 2 ? '#80c998' : '#b1e09a';
+          ctx.fillRect(x - 19, Math.round(y - 3), 5, 3);
+          ctx.fillStyle = '#184f51';
+          ctx.fillRect(x + 14, Math.round(y + 2), 6, 3);
+        }
+      }
+      ctx.fillStyle = '#9be2a2'; ctx.fillRect(784, 365, 7, 4); ctx.fillRect(1036, 445, 8, 4);
+      ctx.fillStyle = '#d8ec9a'; ctx.fillRect(843, 478, 4, 4); ctx.fillRect(1000, 365, 4, 4);
     }
     drawChloroplastHighlight(ctx, time) {
       ctx.fillStyle = `rgba(214,255,157,${.5 + .3 * Math.sin(time * 3)})`; ctx.shadowColor = '#d7f49b'; ctx.shadowBlur = 13; ctx.beginPath(); ctx.arc(1058, 390, 4, 0, TAU); ctx.fill(); ctx.shadowBlur = 0;
@@ -241,16 +388,14 @@
     }
     drawJourneyWorld(ctx, stage, state, time, camera) {
       const half = this.width / (2 * this.scale * camera.zoom);
-      const left = camera.x - half - 90; const right = camera.x + half + 90; const span = right - left;
-      const stroma = ctx.createLinearGradient(0, 0, 0, 365); stroma.addColorStop(0, '#102a29'); stroma.addColorStop(1, '#183c39');
-      const membrane = ctx.createLinearGradient(0, 360, 0, 560); membrane.addColorStop(0, '#26756a'); membrane.addColorStop(.16, '#123d3e'); membrane.addColorStop(.52, '#12363d'); membrane.addColorStop(.85, '#174b50'); membrane.addColorStop(1, '#318477');
-      const lumen = ctx.createLinearGradient(0, 550, 0, 900); lumen.addColorStop(0, '#133c4d'); lumen.addColorStop(1, '#091c30');
-      ctx.fillStyle = stroma; ctx.fillRect(left, 0, span, 365); ctx.fillStyle = membrane; ctx.fillRect(left, 365, span, 190); ctx.fillStyle = lumen; ctx.fillRect(left, 555, span, 345);
-      const haze = ctx.createRadialGradient(camera.x + 220, 412, 30, camera.x + 220, 445, 750); haze.addColorStop(0, 'rgba(87,201,164,.12)'); haze.addColorStop(1, 'rgba(5,18,29,0)');
-      ctx.fillStyle = haze; ctx.fillRect(left, 0, span, 900);
+      const left = camera.x - half - 90; const right = camera.x + half + 90;
+      const firstTile = Math.floor(left / this.journeyBackdropCanvas.width) * this.journeyBackdropCanvas.width;
+      for (let x = firstTile; x < right; x += this.journeyBackdropCanvas.width) ctx.drawImage(this.journeyBackdropCanvas, x, 0);
+      this.drawFlightBounds(ctx, left, right);
       this.drawJourneyMembrane(ctx, left, right, time); this.drawJourneyRegions(ctx, left, right, time);
       this.drawJourneyRail(ctx, left, right, time); this.drawJourneyProtons(ctx, state, time);
-      this.drawJourneyStations(ctx, left, right, time, state); this.drawJourneyHazards(ctx, left, right, time);
+      this.drawJourneyStations(ctx, left, right, time, state);
+      this.drawCheckpointPulse(ctx, time);
       this.drawJourneyProducts(ctx, state, time); this.drawRunnerElectron(ctx, time);
     }
     drawJourneyMembrane(ctx, left, right, time) {
@@ -270,7 +415,8 @@
       for (let i = 0; i < 5; i++) {
         const px = left + ((i * 257 + time * 8) % Math.max(1, right - left)); const py = 120 + (i * 83) % 205;
         ctx.globalAlpha = .2 + .09 * Math.sin(time * 1.4 + i); ctx.fillStyle = i % 2 ? '#92ecd1' : '#c4ee99';
-        ctx.beginPath(); ctx.arc(px, py, 2 + i % 3, 0, TAU); ctx.fill();
+        const size = 3 + i % 2 * 2; ctx.fillRect(Math.round(px), Math.round(py), size, size);
+        ctx.globalAlpha *= .72; ctx.fillRect(Math.round(px) + 1, Math.round(py) - 2, 2, 2);
       }
       ctx.restore();
     }
@@ -279,16 +425,35 @@
       ctx.strokeStyle = 'rgba(197,255,150,.57)'; ctx.lineWidth = 1.1; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -time * 26; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke(); ctx.setLineDash([]);
       ctx.globalAlpha = .18; ctx.strokeStyle = '#ddff9d'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, 465); ctx.lineTo(right, 465); ctx.stroke(); ctx.restore();
     }
+    drawFlightBounds(ctx, left, right) {
+      const { top, bottom } = this.runner.flightBounds;
+      ctx.save();
+      ctx.fillStyle = 'rgba(151,47,74,.12)';
+      ctx.fillRect(left, 0, right - left, top);
+      ctx.fillRect(left, bottom, right - left, 900 - bottom);
+      ctx.strokeStyle = 'rgba(247,112,127,.82)'; ctx.lineWidth = 2; ctx.setLineDash([12, 18]);
+      for (const y of [top, bottom]) {
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      const topMarkerX = left + 110; const bottomMarkerX = right - 250;
+      ctx.fillStyle = 'rgba(8,23,34,.9)'; ctx.fillRect(topMarkerX, top + 12, 138, 24);
+      ctx.fillStyle = '#ffd2bc'; ctx.font = 'bold 12px "DM Mono", Consolas, monospace'; ctx.textAlign = 'left';
+      ctx.fillText('FLIGHT LIMIT', topMarkerX + 9, top + 29);
+      ctx.fillStyle = 'rgba(8,23,34,.9)'; ctx.fillRect(bottomMarkerX, bottom - 36, 138, 24);
+      ctx.fillStyle = '#ffd2bc'; ctx.fillText('FLIGHT LIMIT', bottomMarkerX + 9, bottom - 19);
+      ctx.restore();
+    }
     drawJourneyProtons(ctx, state, time) {
       for (let i = 0; i < state.lumenProtons; i++) {
         const xBase = i < 4 ? 520 : 1800; const local = i % 4;
         const x = xBase + (local - 1.5) * 24 + Math.sin(time * 1.5 + i) * 3; const y = (i < 4 ? 600 : 650) + Math.cos(time * 1.1 + i * 2) * 12;
-        ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = '#9edfff'; ctx.shadowColor = '#78cfff'; ctx.shadowBlur = 7; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+        ctx.save(); ctx.fillStyle = '#9edfff'; ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
         ctx.shadowBlur = 0; ctx.fillStyle = '#e8fbff'; ctx.font = '7px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText('+', x, y + 2.5); ctx.restore();
       }
       if (state.protonFlowActive) for (let i = 0; i < 4; i++) {
         const phase = (time * 1.1 + i * .25) % 1; const y = 530 - phase * 150;
-        ctx.save(); ctx.globalAlpha = .45 + .45 * Math.sin(phase * Math.PI); ctx.fillStyle = '#c7f8ff'; ctx.shadowColor = '#8edcff'; ctx.shadowBlur = 9;
+        ctx.save(); ctx.globalAlpha = .45 + .45 * Math.sin(phase * Math.PI); ctx.fillStyle = '#c7f8ff';
         ctx.beginPath(); ctx.arc(5000 + Math.sin(phase * Math.PI * 2 + i) * 9, y, 4.5, 0, TAU); ctx.fill(); ctx.restore();
       }
     }
@@ -297,8 +462,9 @@
       for (let i = 0; i < this.journey.checkpoints.length; i++) {
         const checkpoint = this.journey.checkpoints[i];
         if (checkpoint.x < left - 160 || checkpoint.x > right + 160) continue;
-        const station = this.stations.find(item => item.id === checkpoint.stationId); const y = station ? station.y : 444;
-        this.drawJourneyStation(ctx, checkpoint, i, checkpoint.x, y, i < completeCount, this.journey.mode === 'station' && i === this.journey.activeCheckpointIndex, i <= completeCount, time, state);
+        const station = this.stations.find(item => item.id === checkpoint.stationId); const y = checkpoint.tunnel ? 444 : station ? station.y : 444;
+        const active = ['station', 'tunnel-entry'].includes(this.journey.mode) && i === this.journey.activeCheckpointIndex;
+        this.drawJourneyStation(ctx, checkpoint, i, checkpoint.x, y, i < completeCount, active, i <= completeCount, time, state);
       }
       const extras = this.stations.filter(item => ['mirror', 'reagent', 'nadph', 'proton-pool', 'lock-ring', 'atp'].includes(item.id));
       for (const station of extras) if (station.x >= left - 110 && station.x <= right + 110) this.drawAuxiliaryStation(ctx, station, time, state);
@@ -309,9 +475,12 @@
     }
     drawJourneyStation(ctx, checkpoint, index, x, y, complete, active, unlocked, time, state) {
       ctx.save(); ctx.translate(x, y); ctx.globalAlpha = unlocked ? 1 : .48; const color = active ? '#ddf69a' : complete ? '#9fe7bc' : '#7edbcf';
-      ctx.shadowColor = color; ctx.shadowBlur = active ? 12 : complete ? 7 : 4; ctx.strokeStyle = color; ctx.fillStyle = 'rgba(8,25,32,.93)'; ctx.lineWidth = active ? 2 : 1.2;
+      ctx.shadowBlur = 0; ctx.strokeStyle = color; ctx.fillStyle = 'rgba(8,25,32,.93)'; ctx.lineWidth = active ? 2 : 1.2;
       const id = checkpoint.id;
-      if (id === 'psii' || id === 'psi') {
+      if (checkpoint.tunnel) {
+        ctx.translate(-checkpoint.approachOffset, 0);
+        this.drawProteinTunnel(ctx, id, active, time, 1.18);
+      } else if (id === 'psii' || id === 'psi') {
         roundRect(ctx, -48, -43, 96, 86, 15); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(78,158,128,.5)'; roundRect(ctx, -36, -31, 72, 62, 11); ctx.fill(); ctx.stroke();
         for (let j = -2; j <= 2; j++) { ctx.fillStyle = j === 0 ? '#d7f594' : '#8dddc6'; ctx.beginPath(); ctx.arc(j * 12, 0, 5.5, 0, TAU); ctx.fill(); }
         ctx.fillStyle = '#e7f5e3'; ctx.font = '9px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText(id === 'psii' ? 'P680' : 'P700', 0, 24);
@@ -336,13 +505,91 @@
         ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(0, 0, 39, -.65, 1.1); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 39, 1.45, 3.2); ctx.stroke(); ctx.beginPath(); ctx.arc(0, 0, 39, 3.55, 5.2); ctx.stroke();
         ctx.fillStyle = '#d5f393'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
       }
-      ctx.shadowBlur = 0; ctx.globalAlpha = unlocked ? 1 : .6; ctx.fillStyle = complete ? '#b9ebc5' : active ? '#e5f5b0' : '#bed9d2'; ctx.font = '8px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.letterSpacing = '.5px';
-      const labelY = id === 'fd-rocket' || id === 'fnr' || id === 'calvin-cycle' ? -54 : 66; ctx.fillText(checkpoint.label, 0, labelY);
-      if (complete) { ctx.fillStyle = '#d4f594'; ctx.font = '7px \"DM Mono\", Consolas, monospace'; ctx.fillText('✓ บันทึกจุดพักแล้ว', 0, labelY + 13); }
-      else if (active) { ctx.fillStyle = '#e0f4a3'; ctx.font = '7px \"DM Mono\", Consolas, monospace'; ctx.fillText('สถานีปัจจุบัน', 0, labelY + 13); }
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      const labelY = checkpoint.tunnel ? -164 : id === 'fd-rocket' || id === 'fnr' || id === 'calvin-cycle' ? -62 : 78;
+      ctx.font = 'bold 15px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.letterSpacing = '.25px';
+      const labelWidth = Math.ceil(ctx.measureText(checkpoint.label).width) + 20;
+      ctx.fillStyle = 'rgba(5,20,29,.94)'; ctx.fillRect(-labelWidth / 2, labelY - 16, labelWidth, 24);
+      ctx.fillStyle = complete ? '#b9ebc5' : active ? '#eaffac' : '#e4f5ec';
+      ctx.fillText(checkpoint.label, 0, labelY);
+      ctx.fillStyle = complete ? '#87dba5' : active ? '#a9db87' : '#76c8ba';
+      ctx.fillRect(-labelWidth / 2, labelY + 5, labelWidth, 2);
+      if (complete || active) {
+        ctx.font = 'bold 10px \"DM Mono\", Consolas, monospace';
+        ctx.fillStyle = complete ? '#d4f594' : '#e0f4a3';
+        ctx.fillText(complete ? '✓ บันทึกจุดพักแล้ว' : 'สถานีปัจจุบัน', 0, labelY + 20);
+      }
       else if (!unlocked) { ctx.globalAlpha = .65; ctx.strokeStyle = '#9bb5b4'; ctx.beginPath(); ctx.arc(0, -53, 4, Math.PI, TAU); ctx.lineTo(4, 0); ctx.arc(0, 0, 4, 0, Math.PI); ctx.closePath(); ctx.stroke(); }
       if (active) { ctx.globalAlpha = .32; ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 61 + Math.sin(time * 3) * 4, 0, TAU); ctx.stroke(); }
       ctx.restore();
+    }
+    buildProteinCaches() {
+      for (const id of tunnelProteinIds) {
+        const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 240;
+        const protein = canvas.getContext('2d'); protein.translate(100, 120); this.drawProteinTunnelArt(protein, id);
+        this.proteinCache.set(id, canvas);
+      }
+    }
+    drawProteinTunnel(ctx, id, active, time, scale = 1) {
+      ctx.save(); ctx.imageSmoothingEnabled = false; ctx.scale(scale, scale);
+      ctx.drawImage(this.proteinCache.get(id), -100, -120);
+      if (id === 'atp-synthase') {
+        const rotor = Math.floor((time * 10) % 4);
+        ctx.fillStyle = tunnelPalettes[id][3]; ctx.fillRect(-9 + rotor * 4, 3, 12, 4);
+      }
+      ctx.fillStyle = active ? '#eaffac' : tunnelPalettes[id][3];
+      const pulseX = Math.round(Math.sin(time * 2.2) * 30);
+      ctx.fillRect(pulseX - 3, -2, 6, 4); ctx.fillRect(pulseX + 2, -6, 3, 3);
+      if (active) {
+        ctx.fillStyle = '#ddf69a'; ctx.fillRect(-88, -4, 5, 8); ctx.fillRect(83, -4, 5, 8);
+      }
+      ctx.restore();
+    }
+    drawProteinTunnelArt(ctx, id) {
+      const [base, shade, highlight, energy] = tunnelPalettes[id];
+      ctx.fillStyle = '#102e39';
+      ctx.fillRect(-78, -64, 156, 128);
+      ctx.fillStyle = base;
+      ctx.fillRect(-70, -76, 140, 28); ctx.fillRect(-70, 48, 140, 28);
+      ctx.fillRect(-80, -56, 28, 112); ctx.fillRect(52, -56, 28, 112);
+      ctx.fillStyle = shade;
+      ctx.fillRect(-70, -76, 140, 8); ctx.fillRect(-70, 68, 140, 8);
+      ctx.fillRect(-80, -56, 8, 112); ctx.fillRect(72, -56, 8, 112);
+      ctx.fillStyle = '#071c27'; ctx.fillRect(-54, -39, 108, 78);
+      ctx.fillStyle = '#133642'; ctx.fillRect(-54, -39, 108, 5); ctx.fillRect(-54, 34, 108, 5);
+      ctx.fillStyle = highlight; ctx.fillRect(-68, -69, 34, 4); ctx.fillRect(36, -69, 28, 4);
+      ctx.fillRect(-66, 62, 22, 4); ctx.fillRect(43, 62, 21, 4);
+      ctx.fillStyle = energy;
+      ctx.fillRect(-49, -43, 14, 4); ctx.fillRect(35, 39, 14, 4);
+      ctx.fillStyle = shade;
+      ctx.fillRect(-44, -28, 12, 9); ctx.fillRect(-44, 18, 12, 9);
+      ctx.fillRect(32, -28, 12, 9); ctx.fillRect(32, 18, 12, 9);
+      if (id === 'psii') {
+        ctx.fillStyle = base; ctx.fillRect(-45, -104, 24, 28); ctx.fillRect(20, -96, 26, 20);
+        ctx.fillStyle = highlight; ctx.fillRect(-41, -108, 8, 4); ctx.fillRect(28, -100, 10, 4);
+        ctx.fillStyle = energy; ctx.fillRect(-43, 76, 15, 11); ctx.fillRect(28, 76, 15, 11);
+        ctx.fillStyle = '#dcf29c'; ctx.fillRect(-37, 78, 4, 4); ctx.fillRect(34, 78, 4, 4);
+      } else if (id === 'psi') {
+        ctx.fillStyle = base; ctx.fillRect(-62, -100, 24, 24); ctx.fillRect(34, -90, 20, 14);
+        ctx.fillStyle = highlight; ctx.fillRect(-57, -104, 8, 4); ctx.fillRect(38, -94, 9, 4);
+        ctx.fillStyle = energy; ctx.fillRect(-78, 3, 26, 9); ctx.fillRect(52, -10, 28, 9);
+      } else if (id === 'cytochrome') {
+        ctx.fillStyle = shade; ctx.fillRect(-90, -52, 12, 104); ctx.fillRect(78, -52, 12, 104);
+        ctx.fillStyle = highlight;
+        ctx.fillRect(-88, -38, 8, 26); ctx.fillRect(-88, 12, 8, 29);
+        ctx.fillRect(80, -40, 8, 28); ctx.fillRect(80, 11, 8, 25);
+        ctx.fillStyle = energy; ctx.fillRect(-91, -6, 14, 12); ctx.fillRect(77, -6, 14, 12);
+      } else if (id === 'fnr') {
+        ctx.fillStyle = base; ctx.fillRect(-50, -94, 22, 18); ctx.fillRect(-40, -108, 38, 16); ctx.fillRect(2, -100, 36, 23);
+        ctx.fillStyle = shade; ctx.fillRect(-32, -92, 15, 10); ctx.fillRect(14, -93, 13, 10);
+        ctx.fillStyle = highlight; ctx.fillRect(-28, -104, 12, 4); ctx.fillRect(18, -96, 12, 4);
+        ctx.fillStyle = energy; ctx.fillRect(-18, 76, 36, 10); ctx.fillRect(-8, 86, 16, 8);
+      } else if (id === 'atp-synthase') {
+        ctx.fillStyle = shade; ctx.fillRect(-38, -112, 76, 14); ctx.fillRect(-50, -98, 100, 21);
+        ctx.fillStyle = base; ctx.fillRect(-42, -105, 84, 16); ctx.fillRect(-15, 76, 30, 21); ctx.fillRect(-24, 97, 48, 14);
+        ctx.fillStyle = highlight; ctx.fillRect(-28, -101, 15, 5); ctx.fillRect(12, -101, 15, 5);
+        ctx.fillStyle = energy; ctx.fillRect(-18, 82, 36, 5); ctx.fillRect(-11, 101, 22, 5);
+      }
     }
     drawAuxiliaryStation(ctx, station, time, state) {
       ctx.save(); ctx.translate(station.x, station.y); ctx.strokeStyle = 'rgba(132,223,202,.53)'; ctx.fillStyle = 'rgba(8,28,34,.85)'; ctx.lineWidth = 1;
@@ -360,22 +607,32 @@
       }
       ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(195,223,212,.72)'; ctx.font = '7px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText(station.label, 0, station.radius + 17); ctx.restore();
     }
-    drawJourneyHazards(ctx, left, right, time) {
-      for (const hazard of this.journey.hazards) {
-        if (hazard.x < left - 60 || hazard.x > right + 60) continue;
-        const pulse = .78 + .22 * Math.sin(time * 5 + hazard.x); ctx.save(); ctx.translate(hazard.x, hazard.y); ctx.globalAlpha = .78 * pulse;
-        ctx.strokeStyle = '#ff9b87'; ctx.fillStyle = 'rgba(152,53,68,.43)'; ctx.shadowColor = '#ff755f'; ctx.shadowBlur = 9;
-        ctx.beginPath(); ctx.arc(0, 0, hazard.radius * .72, 0, TAU); ctx.fill(); ctx.stroke();
-        for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + time * .18; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 10, Math.sin(a) * 10); ctx.lineTo(Math.cos(a) * hazard.radius, Math.sin(a) * hazard.radius); ctx.stroke(); }
-        ctx.shadowBlur = 0; ctx.fillStyle = '#ffe2cb'; ctx.font = '8px \"DM Mono\", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText(hazard.label, 0, 3);
-        ctx.fillStyle = 'rgba(238,174,163,.6)'; ctx.font = '6px \"DM Mono\", Consolas, monospace'; ctx.fillText('อันตรายจาก ROS', 0, hazard.radius + 13); ctx.restore();
+    drawCheckpointPulse(ctx, time) {
+      const remaining = this.journey.checkpointPulse;
+      const checkpoint = this.journey.activeCheckpoint;
+      if (remaining <= 0 || !checkpoint || !['station', 'tunnel-entry'].includes(this.journey.mode)) return;
+      const phase = 1 - remaining / 1.5;
+      const centerX = checkpoint.x - checkpoint.approachOffset;
+      const centerY = this.runner.baseY - 30;
+      ctx.save(); ctx.globalAlpha = Math.min(1, remaining * 1.8);
+      for (let ring = 0; ring < 2; ring++) {
+        const width = 54 + phase * 70 + ring * 16;
+        const height = 76 + phase * 48 + ring * 14;
+        ctx.strokeStyle = ring ? 'rgba(117,231,220,.52)' : 'rgba(218,255,153,.8)';
+        ctx.lineWidth = 2; ctx.strokeRect(Math.round(centerX - width / 2), Math.round(centerY - height / 2), Math.round(width), Math.round(height));
       }
+      ctx.fillStyle = 'rgba(7,24,31,.92)'; ctx.fillRect(centerX - 101, centerY - 82, 202, 22);
+      ctx.fillStyle = '#e5ffad'; ctx.font = 'bold 10px "DM Mono", Consolas, monospace'; ctx.textAlign = 'center';
+      ctx.fillText('CHECKPOINT REACHED', centerX, centerY - 67);
+      ctx.fillStyle = '#7ddbc9'; ctx.fillRect(centerX - 42, centerY + 43, 84, 3);
+      ctx.fillStyle = '#e5ffad'; ctx.fillRect(centerX - 12 + Math.sin(time * 10) * 16, centerY + 41, 6, 7);
+      ctx.restore();
     }
     drawJourneyProducts(ctx, state, time) {
       if (state.hasProduct('o2')) {
         const phase = this.animator.oxygenPhase; const y = 390 - phase * 210; const x = 520 + Math.sin(time * 2.1) * 10;
-        ctx.save(); ctx.globalAlpha = .45 + .45 * Math.sin(Math.min(1, phase + .2) * Math.PI); ctx.strokeStyle = '#bde7ff'; ctx.fillStyle = 'rgba(143,199,234,.24)'; ctx.shadowColor = '#94d7ff'; ctx.shadowBlur = 7;
-        ctx.beginPath(); ctx.arc(x - 7, y, 6, 0, TAU); ctx.arc(x + 7, y - 2, 7, 0, TAU); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0; ctx.fillStyle = '#c4e3f4'; ctx.font = '8px \"DM Mono\", Consolas, monospace'; ctx.fillText('ปล่อย O₂ แล้ว ↑', x + 19, y - 5); ctx.restore();
+        ctx.save(); ctx.globalAlpha = .45 + .45 * Math.sin(Math.min(1, phase + .2) * Math.PI); ctx.strokeStyle = '#bde7ff'; ctx.fillStyle = 'rgba(143,199,234,.24)';
+        ctx.beginPath(); ctx.arc(x - 7, y, 6, 0, TAU); ctx.arc(x + 7, y - 2, 7, 0, TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#c4e3f4'; ctx.font = '8px \"DM Mono\", Consolas, monospace'; ctx.fillText('ปล่อย O₂ แล้ว ↑', x + 19, y - 5); ctx.restore();
       }
       if (state.hasProduct('atp') || state.hasProduct('nadph')) {
         ctx.save(); ctx.strokeStyle = 'rgba(207,244,145,.43)'; ctx.lineWidth = 1.3; ctx.setLineDash([4, 9]); ctx.lineDashOffset = -time * 10;
@@ -387,10 +644,56 @@
     drawRunnerElectron(ctx, time) {
       if (!this.runner || !this.journey.worldStarted || this.journey.gameFinished) return;
       const player = this.runner.player; if (this.runner.invulnerable > 0 && Math.floor(time * 14) % 2 === 0) return;
-      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.translate(player.x, player.y + Math.sin(time * 6) * 2);
-      ctx.shadowColor = '#e2ff9b'; ctx.shadowBlur = 12; ctx.fillStyle = '#edffb0'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, TAU); ctx.fill();
-      ctx.globalAlpha = .52; ctx.beginPath(); ctx.arc(-15, 2, 4.3, 0, TAU); ctx.fill(); ctx.globalAlpha = .26; ctx.beginPath(); ctx.arc(-28, 5, 3, 0, TAU); ctx.fill();
-      ctx.globalAlpha = .35; ctx.strokeStyle = '#dbff9e'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 13 + Math.sin(time * 4) * 2, 0, TAU); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.translate(Math.round(player.x), Math.round(player.y));
+      const pixel = 3; const runFrame = Math.floor(this.runner.animationTime * 12) % 2;
+      const bob = Math.round(Math.sin(this.runner.animationTime * 4) * 1.5);
+      const jumping = this.runner.velocityY < -30; const falling = this.runner.velocityY > 30; const flapping = this.runner.flapTime > 0;
+      const hit = this.runner.hitTime > 0;
+      const angle = hit ? -.12 : flapping ? -.18 : jumping ? -.1 : falling ? .12 : 0;
+      ctx.translate(-runnerSprite[0].length * pixel / 2, -runnerSprite.length * pixel / 2 + (flapping ? -2 : bob)); ctx.rotate(angle);
+      ctx.globalAlpha = .16; ctx.fillStyle = hit ? '#ff746c' : '#98f58c';
+      ctx.fillRect(4 * pixel, 2 * pixel, 7 * pixel, 3 * pixel);
+      ctx.fillRect(2 * pixel, 5 * pixel, 11 * pixel, 4 * pixel);
+      ctx.fillRect(4 * pixel, 10 * pixel, 7 * pixel, 2 * pixel);
+      ctx.globalAlpha = .72; ctx.fillStyle = hit ? '#ff7b78' : '#baff75';
+      ctx.fillRect(2 * pixel, 2 * pixel, pixel, pixel); ctx.fillRect(12 * pixel, 4 * pixel, pixel, pixel);
+      ctx.fillRect(1 * pixel, 7 * pixel, pixel, pixel); ctx.fillRect(13 * pixel, 8 * pixel, pixel, pixel);
+      const eyeColor = hit ? '#fff1da' : '#f3ffcf';
+      const bodyColor = hit ? '#783f55' : '#145d58';
+      const highlight = hit ? '#ffad89' : '#d9ff98';
+      for (let row = 0; row < runnerSprite.length; row++) {
+        if ((jumping || falling) && row >= 12) continue;
+        const bits = runnerSprite[row];
+        for (let column = 0; column < bits.length; column++) {
+          const cell = bits[column];
+          if (cell === '.') continue;
+          if (cell === 'N') ctx.fillStyle = hit ? '#ff8376' : '#a8f36f';
+          else if (cell === 'B') ctx.fillStyle = bodyColor;
+          else if (cell === 'H') ctx.fillStyle = highlight;
+          else if (cell === 'E' || cell === 'W') ctx.fillStyle = eyeColor;
+          else if (cell === 'P') ctx.fillStyle = '#102e3a';
+          else if (cell === 'C') ctx.fillStyle = falling ? '#67d9eb' : jumping ? '#f5f486' : '#58dace';
+          else ctx.fillStyle = '#226f68';
+          const legOffset = row >= 12 && !jumping && !falling ? (runFrame ? (column < 7 ? 2 : 0) : (column < 7 ? 0 : 2)) : 0;
+          ctx.fillRect(column * pixel, row * pixel + legOffset, pixel, pixel);
+        }
+      }
+      if (jumping) {
+        ctx.fillStyle = hit ? '#ff9f86' : '#dcff9c';
+        ctx.fillRect(2 * pixel, 9 * pixel, 2 * pixel, pixel); ctx.fillRect(11 * pixel, 9 * pixel, 2 * pixel, pixel);
+        ctx.fillRect(4 * pixel, 12 * pixel, 3 * pixel, 2 * pixel); ctx.fillRect(8 * pixel, 12 * pixel, 3 * pixel, 2 * pixel);
+      } else if (falling) {
+        ctx.fillStyle = hit ? '#ff9f86' : '#8ee6ec';
+        ctx.fillRect(1 * pixel, 7 * pixel, 2 * pixel, pixel); ctx.fillRect(12 * pixel, 7 * pixel, 2 * pixel, pixel);
+        ctx.fillRect(3 * pixel, 12 * pixel, 2 * pixel, 3 * pixel); ctx.fillRect(10 * pixel, 12 * pixel, 2 * pixel, 3 * pixel);
+      }
+      ctx.globalAlpha = .82; ctx.fillStyle = hit ? '#ff9f86' : '#dcff9c';
+      const tail = Math.floor(time * 10) % 3;
+      ctx.fillRect(-tail, 27, 3, 3); ctx.globalAlpha = .55; ctx.fillRect(-5 - tail, 30, 3, 3);
+      ctx.globalAlpha = .32; ctx.fillRect(-10 + tail, 33, 3, 3);
+      ctx.globalAlpha = .68; ctx.fillStyle = hit ? '#ffc09a' : '#6ce2d0';
+      ctx.fillRect(-pixel, 5 * pixel, pixel, 2 * pixel); ctx.fillRect(13 * pixel, 7 * pixel, pixel, 2 * pixel);
+      ctx.restore();
     }
     drawReaction(ctx, stage, state, time, camera, transition) {
       if (transition.isActive || camera.zoom <= 1.15) {
@@ -438,6 +741,12 @@
       ctx.strokeStyle = 'rgba(125,234,212,.11)'; ctx.lineWidth = 1; ctx.setLineDash([2, 12]);
       for (let x = 115; x < 1375; x += 18) { ctx.beginPath(); ctx.moveTo(x, 397); ctx.lineTo(x + 2, 516); ctx.stroke(); }
       ctx.setLineDash([]);
+      for (let x = 108; x < 1360; x += 32) {
+        const offset = (x / 32) % 2 ? 8 : 0;
+        ctx.fillStyle = 'rgba(89,180,154,.3)'; ctx.fillRect(x, 405 + offset, 11, 4); ctx.fillRect(x + 15, 493 - offset, 9, 4);
+        ctx.fillStyle = 'rgba(13,49,58,.52)'; ctx.fillRect(x + 4, 418 + offset, 4, 23); ctx.fillRect(x + 20, 468 - offset, 4, 18);
+        ctx.fillStyle = 'rgba(181,239,164,.56)'; ctx.fillRect(x + 2, 407 + offset, 4, 3); ctx.fillRect(x + 16, 495 - offset, 4, 3);
+      }
     }
     drawMembranePulse(ctx, time) {
       ctx.save(); ctx.globalAlpha = .34 + .08 * Math.sin(time * 1.3); ctx.strokeStyle = '#9ff3d7'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(86, 458); ctx.lineTo(1354, 458); ctx.stroke(); ctx.restore();
@@ -486,7 +795,10 @@
       ctx.save(); ctx.translate(x, y); ctx.globalAlpha = unlocked ? 1 : .12;
       const color = active ? '#dcf49a' : (station.zone === 'lumen' ? '#85c7f1' : '#83e7d2');
       ctx.strokeStyle = color; ctx.fillStyle = 'rgba(9,27,34,.89)'; ctx.lineWidth = active ? 1.7 : 1.05; ctx.shadowColor = color; ctx.shadowBlur = active ? 18 + Math.sin(time * 3) * 4 : unlocked ? 7 : 0;
-      if (kind === 'photosystem') {
+      if (tunnelProteinIds.has(station.id)) {
+        ctx.shadowBlur = 0;
+        this.drawProteinTunnel(ctx, station.id, active, time, .78);
+      } else if (kind === 'photosystem') {
         roundRect(ctx, -48, -43, 96, 87, 17); ctx.fill(); ctx.stroke();
         ctx.fillStyle = 'rgba(53,135,116,.42)'; roundRect(ctx, -37, -32, 74, 64, 12); ctx.fill(); ctx.stroke();
         for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.arc(i * 11, 0, 5, 0, TAU); ctx.fillStyle = i === 0 ? '#dafa9a' : color; ctx.fill(); }

@@ -3,47 +3,47 @@
     constructor(events) {
       this.events = events;
       this.player = { x: 80, y: 444, radius: 13 };
-      this.baseY = 444; this.velocityY = 0; this.speed = 218; this.energy = 3;
-      this.running = false; this.invulnerable = 0; this.diveHeld = false;
-      this.held = new Set();
+      this.baseY = 444; this.velocityY = 0; this.speed = 218; this.gravity = 760; this.flapVelocity = -315; this.energy = 3;
+      this.flightBounds = { top: 96, bottom: 804 };
+      this.running = false; this.invulnerable = 0; this.held = new Set();
+      this.animationTime = 0; this.hitTime = 0; this.flapTime = 0;
     }
     start(x = 80) {
       this.player.x = Math.max(80, x); this.player.y = this.baseY; this.velocityY = 0;
-      this.running = true; this.invulnerable = 0; this.held.clear();
+      this.running = true; this.invulnerable = 0; this.held.clear(); this.hitTime = 0; this.flapTime = 0;
       this.events.emit('runner:started', { x: this.player.x });
     }
     pause() { this.running = false; this.held.clear(); this.velocityY = 0; this.player.y = this.baseY; }
     resume() { this.running = true; this.held.clear(); this.events.emit('runner:resumed', { x: this.player.x }); }
-    setX(x) { this.player.x = Math.max(0, x); this.player.y = this.baseY; this.velocityY = 0; }
+    setX(x) { this.player.x = Math.max(0, x); this.player.y = this.baseY; this.velocityY = 0; this.flapTime = 0; }
     keyDown(code, repeat = false) {
       if (!this.running) return false;
-      if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
+      if (code === 'Space') {
         this.held.add(code);
-        if ((code === 'Space' || code === 'ArrowUp') && !repeat) this.jump();
-        if (code === 'ArrowDown') this.diveHeld = true;
+        if (!repeat) this.flap();
         return true;
       }
       return false;
     }
-    keyUp(code) {
-      this.held.delete(code);
-      if (code === 'ArrowDown') this.diveHeld = false;
-    }
-    jump() {
-      if (!this.running || this.player.y < this.baseY - 1) return false;
-      this.velocityY = -425;
-      this.events.emit('runner:jump', { x: this.player.x });
+    keyUp(code) { this.held.delete(code); }
+    flap() {
+      if (!this.running) return false;
+      this.velocityY = this.flapVelocity;
+      this.flapTime = .18;
+      this.events.emit('runner:flap', { x: this.player.x, y: this.player.y });
       return true;
     }
     update(dt) {
       if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);
+      this.hitTime = Math.max(0, this.hitTime - dt);
       if (!this.running) return;
-      const modifier = (this.held.has('ArrowRight') ? 1.28 : 1) * (this.held.has('ArrowLeft') ? .72 : 1);
-      this.player.x += this.speed * modifier * dt;
-      if (this.player.y < this.baseY || this.velocityY < 0) {
-        this.velocityY += (this.diveHeld ? 1750 : 1120) * dt;
-        this.player.y += this.velocityY * dt;
-        if (this.player.y >= this.baseY) { this.player.y = this.baseY; this.velocityY = 0; }
+      this.animationTime += dt;
+      this.flapTime = Math.max(0, this.flapTime - dt);
+      this.player.x += this.speed * dt;
+      this.velocityY += this.gravity * dt;
+      this.player.y += this.velocityY * dt;
+      if (this.player.y < this.flightBounds.top || this.player.y > this.flightBounds.bottom) {
+        this.events.emit('runner:flight-boundary', { x: this.player.x, y: this.player.y });
       }
     }
     takeHit(respawnX) {
@@ -52,6 +52,16 @@
       const lost = this.energy <= 0;
       if (lost) { this.energy = 3; this.setX(respawnX); }
       this.events.emit(lost ? 'runner:respawn' : 'runner:damaged', { energy: this.energy, x: this.player.x, respawnX });
+      return true;
+    }
+    crash(respawnX) {
+      if (!this.running || this.invulnerable > 0) return false;
+      const x = this.player.x;
+      this.energy -= 1;
+      if (this.energy <= 0) this.energy = 3;
+      this.setX(respawnX);
+      this.running = false; this.invulnerable = .55; this.hitTime = .32; this.held.clear();
+      this.events.emit('runner:respawn', { x, respawnX, energy: this.energy });
       return true;
     }
   }

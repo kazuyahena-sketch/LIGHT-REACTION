@@ -7,19 +7,20 @@
     { id: 'nadph', formula: 'NADPH', correct: false },
     { id: 'nadp', formula: 'NADP', correct: false }
   ];
-
   class JourneyController {
-    constructor(checkpoints, hazards, stages, state, runner, camera, minigames, panel, events, vfx, audio) {
-      this.checkpoints = checkpoints; this.hazards = hazards; this.stages = stages; this.state = state;
+    constructor(checkpoints, stages, state, runner, camera, minigames, panel, events, vfx, audio) {
+      this.checkpoints = checkpoints; this.stages = stages; this.state = state;
       this.runner = runner; this.camera = camera; this.minigames = minigames; this.panel = panel;
       this.events = events; this.vfx = vfx; this.audio = audio;
       this.worldStarted = false; this.mode = 'intro'; this.activeCheckpointIndex = -1;
+      this.followPoint = { x: 0, y: 450 };
+      this.followPlayer = () => { this.followPoint.x = this.runner.player.x + 260; return this.followPoint; };
       this.stationElapsed = 0; this.waterHits = 0; this.waterPhase = 0; this.fdCharge = 0;
       this.stationUiElapsed = 0;
       this.pumpPhase = 0; this.reagentState = { selected: null, electrons: 0, proton: false };
       this.routeGate = 0; this.routeSafe = []; this.pumpCount = 0; this.ringAngles = [90, 270, 150];
-      this.protonFlowClock = 0; this.protonFlowCount = 0; this.autoContinue = 0; this.hazardClock = 0;
-      this.entryTimer = 0;
+      this.protonFlowClock = 0; this.protonFlowCount = 0; this.autoContinue = 0;
+      this.entryTimer = 0; this.respawnTimer = 0; this.checkpointPulse = 0;
       this.mirrorLocked = false; this.mirrorSequenceElapsed = 0; this.mirrorSequencePhase = '';
       this.gameFinished = false; this.reagents = [];
       ['water', 'pq-route', 'proton-pump', 'pc-current', 'mirror', 'fd-launch', 'reagent', 'rings', 'calvin'].forEach(id => {
@@ -28,9 +29,21 @@
       events.on('journey:world-start', () => this.startWorld());
       events.on('minigame:action', data => this.action(data));
       events.on('game:reset', () => this.reset());
-      events.on('runner:respawn', ({ x }) => { this.camera.focus({ x: x + 260, y: 450, zoom: .86 }, .42); this.camera.setFollow(() => ({ x: this.runner.player.x + 260, y: 450 })); this.vfx.emit('checkpoint-respawn', { x, y: 444, intensity: .75 }); });
+      events.on('runner:respawn', ({ respawnX, x }) => {
+        if (this.mode === 'respawning') {
+          this.camera.transition = null; this.camera.blur = 0;
+          this.camera.x = this.runner.player.x + 260; this.camera.y = 450; this.camera.zoom = .86;
+          this.camera.setFollow(this.followPlayer);
+          this.vfx.emit('checkpoint-respawn', { x: respawnX, y: 444, intensity: .75 });
+        } else {
+          this.camera.focus({ x: x + 260, y: 450, zoom: .86 }, .42);
+          this.camera.setFollow(this.followPlayer);
+          this.vfx.emit('checkpoint-respawn', { x, y: 444, intensity: .75 });
+        }
+      });
       events.on('runner:damaged', ({ x }) => { this.camera.shake(5, .22); this.vfx.emit('radical-hit', { x, y: 444, intensity: .7 }); this.audio.cue('input-miss'); });
-      events.on('runner:jump', ({ x }) => { this.vfx.emit('electron-jump', { x, y: 444, intensity: .36 }); this.audio.cue('electron-transfer'); });
+      events.on('runner:flap', ({ x, y }) => { this.vfx.emit('electron-transfer', { x: x - 12, y: y + 9, intensity: .22 }); this.audio.cue('electron-transfer'); });
+      events.on('runner:flight-boundary', () => this.respawnAtSavePoint());
     }
     get completedCount() {
       if (!this.state.checkpointId) return 0;
@@ -39,7 +52,13 @@
     }
     get activeCheckpoint() { return this.activeCheckpointIndex >= 0 ? this.checkpoints[this.activeCheckpointIndex] : null; }
     get nextCheckpoint() { return this.checkpoints[this.completedCount] || null; }
-    get progress() { return clamp(this.runner.player.x / this.checkpoints[this.checkpoints.length - 1].x, 0, 1); }
+    get progress() {
+      const checkpoint = this.nextCheckpoint;
+      if (!checkpoint) return 1;
+      const startX = this.state.checkpointId ? this.state.checkpointX : 80;
+      const endX = checkpoint.x - checkpoint.approachOffset;
+      return clamp((this.runner.player.x - startX) / Math.max(1, endX - startX), 0, 1);
+    }
 
     startWorld() {
       this.worldStarted = true;
@@ -55,21 +74,41 @@
       this.runner.start(spawnX); this.runner.pause();
       this.mode = 'entry'; this.entryTimer = .82; this.activeCheckpointIndex = -1;
       this.camera.focus({ x: spawnX + 260, y: 450, zoom: .86 }, .82);
-      this.camera.setFollow(() => ({ x: this.runner.player.x + 260, y: 450 }));
+      this.camera.setFollow(this.followPlayer);
       this.events.emit('journey:resumed', { x: spawnX, checkpointId: this.state.checkpointId, completed: this.completedCount });
     }
     update(dt) {
       if (!this.worldStarted) return;
-      if (this.mode === 'entry') {
+      this.checkpointPulse = Math.max(0, this.checkpointPulse - dt);
+      if (this.mode === 'entry' || this.mode === 'tunnel-entry') {
         this.entryTimer -= dt;
-        if (this.entryTimer <= 0) { this.mode = 'running'; this.runner.resume(); this.events.emit('journey:mode-changed', this.mode); }
+        if (this.entryTimer <= 0) {
+          if (this.mode === 'tunnel-entry') {
+            this.mode = 'station'; this.stationElapsed = 0; this.stationUiElapsed = 0;
+            this.openCheckpointGame(this.activeCheckpoint);
+          } else {
+            this.mode = 'running'; this.runner.resume();
+          }
+          this.events.emit('journey:mode-changed', this.mode);
+        }
+        return;
+      }
+      if (this.mode === 'respawning') {
+        this.respawnTimer -= dt;
+        if (this.respawnTimer <= 0) { this.mode = 'running'; this.runner.resume(); this.events.emit('journey:mode-changed', this.mode); }
         return;
       }
       if (this.mode === 'running') {
         this.runner.update(dt);
-        this.checkHazards(dt);
+        if (this.mode !== 'running') return;
         const checkpoint = this.nextCheckpoint;
-        if (checkpoint && this.runner.running && this.runner.player.x >= checkpoint.x - checkpoint.approachOffset) this.arriveAtCheckpoint(checkpoint);
+        if (checkpoint && this.runner.running && this.runner.player.x >= checkpoint.x - checkpoint.approachOffset) {
+          if (checkpoint.tunnel && Math.abs(this.runner.player.y - this.runner.baseY) > 42) {
+            this.respawnAtSavePoint();
+            return;
+          }
+          this.arriveAtCheckpoint(checkpoint);
+        }
         return;
       }
       if (this.mode === 'station') {
@@ -97,26 +136,24 @@
         if (this.autoContinue <= 0 && this.mode === 'checkpoint') this.continueJourney();
       }
     }
-    checkHazards(dt) {
-      if (this.runner.invulnerable > 0 || this.hazardClock > 0) { this.hazardClock = Math.max(0, this.hazardClock - dt); return; }
-      const player = this.runner.player;
-      for (const hazard of this.hazards) {
-        if (Math.abs(player.x - hazard.x) < hazard.radius + player.radius && Math.abs(player.y - hazard.y) < hazard.radius + player.radius + 3) {
-          this.runner.takeHit(this.state.checkpointId ? this.state.checkpointX : 80);
-          this.hazardClock = .8;
-          return;
-        }
-      }
+    respawnAtSavePoint() {
+      if (this.mode !== 'running' || this.runner.invulnerable > 0) return;
+      const spawnX = this.state.checkpointId ? this.state.checkpointX : 80;
+      this.mode = 'respawning'; this.respawnTimer = .34;
+      this.runner.crash(spawnX);
     }
     arriveAtCheckpoint(checkpoint) {
       this.activeCheckpointIndex = this.checkpoints.indexOf(checkpoint);
       this.runner.setX(checkpoint.x - checkpoint.approachOffset); this.runner.pause();
-      this.mode = 'station'; this.stationElapsed = 0; this.stationUiElapsed = 0; this.events.emit('state:changed', this.state.snapshot());
+      const entersTunnel = checkpoint.tunnel;
+      this.mode = entersTunnel ? 'tunnel-entry' : 'station';
+      this.entryTimer = entersTunnel ? .42 : 0; this.stationElapsed = 0; this.stationUiElapsed = 0; this.checkpointPulse = 1.5; this.events.emit('state:changed', this.state.snapshot());
       const stage = this.stages.find(item => item.id === checkpoint.stageId);
       if (stage) this.state.setCurrentIndex(stage.index);
       this.events.emit('journey:checkpoint-arrival', { checkpoint, index: this.activeCheckpointIndex, total: this.checkpoints.length });
-      this.camera.setFollow(() => ({ x: this.runner.player.x + 260, y: 450 }));
-      this.openCheckpointGame(checkpoint);
+      this.camera.setFollow(this.followPlayer);
+      if (entersTunnel) this.camera.focus({ x: this.runner.player.x + 120, y: 444, zoom: .86 }, .42);
+      else this.openCheckpointGame(checkpoint);
       this.audio.cue('station-arrival');
     }
     openCheckpointGame(checkpoint) {
@@ -334,7 +371,7 @@
       this.panel.hide(); this.activeCheckpointIndex = -1; this.mode = 'running';
       this.runner.setX(this.state.checkpointX); this.runner.resume();
       this.camera.focus({ x: this.runner.player.x + 260, y: 450, zoom: .86 }, .45);
-      this.camera.setFollow(() => ({ x: this.runner.player.x + 260, y: 450 }));
+      this.camera.setFollow(this.followPlayer);
       this.events.emit('journey:continued', { x: this.state.checkpointX, completed: this.completedCount });
     }
     shuffle(items) {
@@ -345,6 +382,7 @@
       this.worldStarted = false; this.mode = 'intro'; this.activeCheckpointIndex = -1; this.stationElapsed = 0;
       this.waterHits = 0; this.fdCharge = 0; this.routeGate = 0; this.pumpCount = 0; this.protonFlowCount = 0; this.mirrorLocked = false; this.reagentState = { selected: null, electrons: 0, proton: false }; this.stationUiElapsed = 0;
       this.autoContinue = 0; this.gameFinished = false; this.calvinLoaded = null;
+      this.respawnTimer = 0; this.checkpointPulse = 0;
       this.runner.pause(); this.camera.setFollow(null); this.panel.hide();
     }
   }

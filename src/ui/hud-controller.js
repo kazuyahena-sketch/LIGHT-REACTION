@@ -19,7 +19,10 @@
       eventBus.on('transition:start', () => this.refresh()); eventBus.on('transition:complete', () => this.refresh());
       eventBus.on('stage:entered', stage => { this.explanation.present(stage); this.refresh(); this.showToast(stage.title); });
       eventBus.on('journey:checkpoint-arrival', ({ checkpoint }) => { this.updateJourney(); });
-      eventBus.on('journey:checkpoint-complete', () => this.updateJourney());
+      eventBus.on('journey:checkpoint-complete', ({ checkpoint }) => {
+        this.updateJourney();
+        this.showToast('CHECKPOINT SAVED · ' + checkpoint.label, '');
+      });
       eventBus.on('journey:continued', () => this.updateJourney());
       this.refresh(); this.updateJourney();
     }
@@ -51,12 +54,21 @@
       } else if (this.journey.mode === 'station') {
         e.runnerStation.textContent = cp.label + ' · จุดพัก';
         e.runnerObjective.textContent = cp.copy;
+      } else if (this.journey.mode === 'tunnel-entry') {
+        e.runnerStation.textContent = cp.label + ' · อุโมงค์โปรตีน';
+        e.runnerObjective.textContent = 'กำลังเคลื่อนผ่านช่องทางของโปรตีน · เตรียมเข้าสู่สถานีทดลอง';
       } else if (this.journey.mode === 'checkpoint') {
         e.runnerStation.textContent = cp.label + ' · บันทึกแล้ว';
         e.runnerObjective.textContent = 'ผ่านสถานีแล้ว กำลังเดินทางต่อ';
+      } else if (this.journey.mode === 'respawning') {
+        e.runnerStation.textContent = 'ปรับระดับการบิน · กลับจุดเซฟ';
+        e.runnerObjective.textContent = 'กำลังเริ่มการเดินทางใหม่จากจุดบันทึกล่าสุด';
+      } else if (this.journey.mode === 'running') {
+        e.runnerStation.textContent = 'ELECTRON FLIGHT · ' + cp.label;
+        e.runnerObjective.textContent = 'กด SPACE / คลิก / แตะ เพื่อกระดกขึ้น · ปล่อยให้แรงโน้มถ่วงพาลง';
       } else {
         e.runnerStation.textContent = 'ถัดไป · ' + cp.label;
-        e.runnerObjective.textContent = cp.copy + ' กระโดดข้าม ¹O₂ / ROS แล้วตามรางพลังงาน';
+        e.runnerObjective.textContent = cp.copy + ' ควบคุมระดับการลอยตัวเพื่อเดินทางไปยังโปรตีนถัดไป';
       }
       const current = this.journey.completedCount + (this.journey.mode === 'station' ? 1 : 0);
       e.runnerCount.textContent = String(current).padStart(2, '0') + ' / 09';
@@ -72,8 +84,8 @@
       if (stage.id === 'light-reaction') return 'ตามเส้นทางอิเล็กตรอนในโลกด้านข้างที่เชื่อมต่ออย่างต่อเนื่อง';
       return stage.explanation;
     }
-    showToast(label) {
-      const toast = this.elements.toast; toast.textContent = 'ถึงแล้ว · ' + label; toast.classList.add('visible');
+    showToast(label, prefix = 'ถึงแล้ว · ') {
+      const toast = this.elements.toast; toast.textContent = prefix + label; toast.classList.add('visible');
       window.clearTimeout(this.toastTimeout); this.toastTimeout = window.setTimeout(() => toast.classList.remove('visible'), 1900);
     }
     escape(value) { return String(value).replace(/[&<>\"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;' })[character]); }

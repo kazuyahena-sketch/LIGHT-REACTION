@@ -55,8 +55,10 @@
       if (this.shakeTime > 0) {
         this.shakeTime = Math.max(0, this.shakeTime - dt);
         const strength = this.shakeAmount * (this.shakeTime / Math.max(.001, this.shakeDuration));
-        this.shakeOffset = { x: (Math.random() - .5) * strength, y: (Math.random() - .5) * strength };
-      } else this.shakeOffset = { x: 0, y: 0 };
+        const phase = (this.shakeDuration - this.shakeTime) * 48;
+        this.shakeOffset.x = Math.sin(phase) * strength;
+        this.shakeOffset.y = Math.sin(phase * 1.37 + .8) * strength;
+      } else { this.shakeOffset.x = 0; this.shakeOffset.y = 0; }
     }
   }
   root.LightReaction = root.LightReaction || {};

@@ -19,7 +19,7 @@
       this.animator = new LR.BiologyAnimator(this.events, this.state, this.vfx);
       this.renderer.animator = this.animator;
       this.runner = new LR.RunnerController(this.events);
-      this.journey = new LR.JourneyController(LR.JourneyCheckpoints, LR.JourneyHazards, LR.Stages, this.state, this.runner, this.camera, this.minigames, this.panel, this.events, this.vfx, this.audio);
+      this.journey = new LR.JourneyController(LR.JourneyCheckpoints, LR.Stages, this.state, this.runner, this.camera, this.minigames, this.panel, this.events, this.vfx, this.audio);
       this.renderer.runner = this.runner; this.renderer.journey = this.journey;
       this.explanation = new LR.ExplanationDirector(this.events);
       const initialStage = this.stageManager.current;
@@ -34,7 +34,7 @@
       this.events.on('game:reset', () => { this.renderer.setJourneyMode(false); this.shell.classList.remove('runner-mode', 'journey-complete'); });
       this.events.on('biology:water-split', () => this.camera.shake(5, .32));
       this.events.on('product:earned', () => this.audio.cue('product-formed'));
-      this.events.on('journey:checkpoint-arrival', ({ checkpoint, index, total }) => this.hud.showToast('ถึงสถานี ' + (index + 1) + ' / ' + total + ' · ' + checkpoint.label));
+      this.events.on('journey:checkpoint-arrival', ({ checkpoint, index, total }) => this.hud.showToast('CHECKPOINT REACHED · ' + (index + 1) + ' / ' + total + ' · ' + checkpoint.label, ''));
       this.lastFrame = 0; this.running = false; this.hudUpdateElapsed = 0; this.completionIdleElapsed = 0;
       this.frame = this.frame.bind(this);
       this.events.on('transition:start', () => this.start());
