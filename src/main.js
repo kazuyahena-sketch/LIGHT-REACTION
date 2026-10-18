@@ -19,7 +19,7 @@
       this.animator = new LR.BiologyAnimator(this.events, this.state, this.vfx);
       this.renderer.animator = this.animator;
       this.runner = new LR.RunnerController(this.events);
-      this.journey = new LR.JourneyController(LR.JourneyCheckpoints, LR.Stages, this.state, this.runner, this.camera, this.minigames, this.panel, this.events, this.vfx, this.audio);
+      this.journey = new LR.JourneyController(LR.JourneyCheckpoints, LR.Stages, this.state, this.runner, this.camera, this.minigames, this.panel, this.events, this.vfx, this.audio, this.renderer);
       this.renderer.runner = this.runner; this.renderer.journey = this.journey;
       this.explanation = new LR.ExplanationDirector(this.events);
       const initialStage = this.stageManager.current;

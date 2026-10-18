@@ -26,21 +26,16 @@
     [{ x: 620, y: 700 }, { x: 695, y: 650 }, { x: 740, y: 565 }, { x: 760, y: 455 }, { x: 773, y: 375 }]
   ];
   const runnerSprite = [
-    '....NNNNNNN....',
-    '..NNBBBBBBBNN..',
-    '.NBBBBBBBBBBBN.',
-    'NBBBBBBBBBBBBBN',
-    'NBBBBEBBBBBBBBN',
-    'NBBBBEPBEPBBBBN',
-    'NBBBBEPBEPBBBBN',
-    'NBBBBBCHBBBBBBN',
-    '.NBBBBBBBBBBBN.',
-    '..NBBBBBBBBBN..',
-    '...NBBBBBBBN...',
-    '....NBBBBBN....',
-    '...NN.....NN...',
-    '..NN.......NN..',
-    '..NN.......NN..'
+    '....NNNN....',
+    '..NNBBBBNN..',
+    '.NBBBBBBBBN.',
+    'NBBHHBBBBBBN',
+    'NBBHEEBEEBBN',
+    'NBBHPPBPPBBN',
+    'NBBBBBBBBBBN',
+    '.NBBBBBBBBN.',
+    '..NNBBBBNN..',
+    '....NNNN....'
   ];
   const tunnelProteinIds = new Set(root.LightReaction.JourneyCheckpoints.filter(checkpoint => checkpoint.tunnel).map(checkpoint => checkpoint.id));
   const tunnelPalettes = {
@@ -110,20 +105,6 @@
         ctx.fillRect(x, 118 + (x % 7) * 21, 3, 3);
         ctx.fillRect(x + 13, 640 + (x % 5) * 18, 2, 2);
       }
-      for (let x = 22; x < 960; x += 64) {
-        const y = 86 + (x % 5) * 38;
-        ctx.fillStyle = 'rgba(15,55,57,.55)'; ctx.fillRect(x, y, 44, 18); ctx.fillRect(x + 8, y - 7, 31, 7);
-        ctx.fillStyle = 'rgba(48,120,105,.62)'; ctx.fillRect(x + 4, y + 3, 36, 11); ctx.fillRect(x + 11, y - 3, 22, 6);
-        ctx.fillStyle = 'rgba(104,198,151,.48)'; ctx.fillRect(x + 9, y + 5, 12, 3); ctx.fillRect(x + 26, y + 11, 10, 3);
-        ctx.fillStyle = 'rgba(215,240,143,.48)'; ctx.fillRect(x + 15, y + 1, 4, 3); ctx.fillRect(x + 32, y + 7, 3, 3);
-      }
-      for (let x = 36; x < 960; x += 96) {
-        const y = 626 + (x % 4) * 42;
-        ctx.fillStyle = 'rgba(16,52,69,.6)'; ctx.fillRect(x, y, 31, 24); ctx.fillRect(x + 6, y - 7, 20, 7);
-        ctx.fillStyle = 'rgba(47,116,129,.58)'; ctx.fillRect(x + 4, y + 4, 23, 15);
-        ctx.fillStyle = 'rgba(114,192,187,.48)'; ctx.fillRect(x + 7, y + 6, 4, 9); ctx.fillRect(x + 17, y + 8, 5, 7);
-        ctx.fillStyle = 'rgba(195,226,139,.5)'; ctx.fillRect(x + 12, y + 3, 4, 3);
-      }
       ctx.fillStyle = 'rgba(123,228,201,.13)'; ctx.fillRect(0, 377, 960, 2); ctx.fillRect(0, 545, 960, 2);
       this.drawPixelEnvironment(ctx);
     }
@@ -159,7 +140,7 @@
         ctx.fillStyle = color; ctx.fillRect(x, y, size, size);
         ctx.fillStyle = 'rgba(239,255,190,.78)'; ctx.fillRect(x + 2, y + 1, Math.max(2, size - 4), 2);
       }
-      for (let x = 18; x < 960; x += 24) {
+      for (let x = 18; x < 960; x += 36) {
         const y = 368 + (x % 5) * 3;
         ctx.fillStyle = '#286f6c'; ctx.fillRect(x, y + 4, 7, 15); ctx.fillRect(x + 3, y + 2, 2, 4);
         ctx.fillStyle = x % 48 ? '#5ec7a4' : '#9adf9d'; ctx.fillRect(x, y, 7, 7);
@@ -170,12 +151,11 @@
         ctx.fillStyle = '#47a6a3'; ctx.fillRect(x + 11, lowerY - 5, 7, 7);
         ctx.fillStyle = '#99db9c'; ctx.fillRect(x + 13, lowerY - 4, 3, 3);
       }
-      for (let i = 0; i < 4; i++) {
-        const x = 125 + i * 226;
-        ctx.fillStyle = 'rgba(16,54,67,.8)'; ctx.fillRect(x, 672, 38, 88); ctx.fillRect(x - 10, 682, 58, 18);
-        ctx.fillStyle = '#347d86'; ctx.fillRect(x + 5, 678, 28, 72); ctx.fillRect(x - 5, 688, 48, 7);
-        ctx.fillStyle = '#85d9c2'; ctx.fillRect(x + 11, 686, 5, 52); ctx.fillRect(x + 22, 702, 5, 42);
-        ctx.fillStyle = '#dcf18b'; ctx.fillRect(x + 17, 694, 5, 5); ctx.fillRect(x + 17, 712, 5, 5);
+      const lumenParticles = [[132, 690], [354, 748], [620, 680], [846, 742]];
+      for (const [x, y] of lumenParticles) {
+        ctx.fillStyle = 'rgba(74,153,161,.5)'; ctx.fillRect(x, y, 12, 9);
+        ctx.fillStyle = 'rgba(135,211,190,.64)'; ctx.fillRect(x + 3, y + 2, 4, 4);
+        ctx.fillStyle = 'rgba(211,241,151,.68)'; ctx.fillRect(x + 8, y + 1, 2, 2);
       }
     }
     render(timestamp, currentStage, transition, camera, gameState) {
@@ -391,7 +371,6 @@
       const left = camera.x - half - 90; const right = camera.x + half + 90;
       const firstTile = Math.floor(left / this.journeyBackdropCanvas.width) * this.journeyBackdropCanvas.width;
       for (let x = firstTile; x < right; x += this.journeyBackdropCanvas.width) ctx.drawImage(this.journeyBackdropCanvas, x, 0);
-      this.drawFlightBounds(ctx, left, right);
       this.drawJourneyMembrane(ctx, left, right, time); this.drawJourneyRegions(ctx, left, right, time);
       this.drawJourneyRail(ctx, left, right, time); this.drawJourneyProtons(ctx, state, time);
       this.drawJourneyStations(ctx, left, right, time, state);
@@ -404,6 +383,35 @@
       const firstTile = Math.floor(left / this.membranePattern.width) * this.membranePattern.width;
       for (let x = firstTile; x < right; x += this.membranePattern.width) ctx.drawImage(this.membranePattern, x, 365);
       ctx.restore();
+    }
+    journeyPathBoundsAt(camera, worldX) {
+      const half = this.width / (2 * this.scale * camera.zoom);
+      const left = camera.x - half - 90; const right = camera.x + half + 90;
+      const parameterAtX = (control1, control2) => {
+        const curveX = t => {
+          const inverse = 1 - t;
+          return inverse ** 3 * left + 3 * inverse ** 2 * t * control1
+            + 3 * inverse * t ** 2 * control2 + t ** 3 * right;
+        };
+        let low = 0; let high = 1;
+        for (let i = 0; i < 20; i++) {
+          const middle = (low + high) / 2;
+          if (curveX(middle) < worldX) low = middle;
+          else high = middle;
+        }
+        return (low + high) / 2;
+      };
+      const curveY = (t, start, control1, control2, end) => {
+        const inverse = 1 - t;
+        return inverse ** 3 * start + 3 * inverse ** 2 * t * control1
+          + 3 * inverse * t ** 2 * control2 + t ** 3 * end;
+      };
+      const topT = parameterAtX(left + 250, right - 300);
+      const bottomT = parameterAtX(left + 320, right - 250);
+      return {
+        top: curveY(topT, 378, 365, 394, 377) + .75,
+        bottom: curveY(bottomT, 545, 561, 531, 548) - .75
+      };
     }
     drawJourneyRegions(ctx, left, right, time) {
       const x = left + 115; ctx.save(); ctx.font = '10px \"DM Mono\", Consolas, monospace'; ctx.letterSpacing = '2px'; ctx.textAlign = 'left';
@@ -421,28 +429,8 @@
       ctx.restore();
     }
     drawJourneyRail(ctx, left, right, time) {
-      ctx.save(); ctx.strokeStyle = 'rgba(118,241,211,.18)'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke();
-      ctx.strokeStyle = 'rgba(197,255,150,.57)'; ctx.lineWidth = 1.1; ctx.setLineDash([3, 11]); ctx.lineDashOffset = -time * 26; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke(); ctx.setLineDash([]);
-      ctx.globalAlpha = .18; ctx.strokeStyle = '#ddff9d'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, 465); ctx.lineTo(right, 465); ctx.stroke(); ctx.restore();
-    }
-    drawFlightBounds(ctx, left, right) {
-      const { top, bottom } = this.runner.flightBounds;
-      ctx.save();
-      ctx.fillStyle = 'rgba(151,47,74,.12)';
-      ctx.fillRect(left, 0, right - left, top);
-      ctx.fillRect(left, bottom, right - left, 900 - bottom);
-      ctx.strokeStyle = 'rgba(247,112,127,.82)'; ctx.lineWidth = 2; ctx.setLineDash([12, 18]);
-      for (const y of [top, bottom]) {
-        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      const topMarkerX = left + 110; const bottomMarkerX = right - 250;
-      ctx.fillStyle = 'rgba(8,23,34,.9)'; ctx.fillRect(topMarkerX, top + 12, 138, 24);
-      ctx.fillStyle = '#ffd2bc'; ctx.font = 'bold 12px "DM Mono", Consolas, monospace'; ctx.textAlign = 'left';
-      ctx.fillText('FLIGHT LIMIT', topMarkerX + 9, top + 29);
-      ctx.fillStyle = 'rgba(8,23,34,.9)'; ctx.fillRect(bottomMarkerX, bottom - 36, 138, 24);
-      ctx.fillStyle = '#ffd2bc'; ctx.fillText('FLIGHT LIMIT', bottomMarkerX + 9, bottom - 19);
-      ctx.restore();
+      ctx.save(); ctx.strokeStyle = 'rgba(118,241,211,.14)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke();
+      ctx.strokeStyle = 'rgba(197,255,150,.46)'; ctx.lineWidth = 1; ctx.setLineDash([3, 16]); ctx.lineDashOffset = -time * 20; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
     }
     drawJourneyProtons(ctx, state, time) {
       for (let i = 0; i < state.lumenProtons; i++) {
@@ -645,24 +633,21 @@
       if (!this.runner || !this.journey.worldStarted || this.journey.gameFinished) return;
       const player = this.runner.player; if (this.runner.invulnerable > 0 && Math.floor(time * 14) % 2 === 0) return;
       ctx.save(); ctx.translate(Math.round(player.x), Math.round(player.y));
-      const pixel = 3; const runFrame = Math.floor(this.runner.animationTime * 12) % 2;
-      const bob = Math.round(Math.sin(this.runner.animationTime * 4) * 1.5);
-      const jumping = this.runner.velocityY < -30; const falling = this.runner.velocityY > 30; const flapping = this.runner.flapTime > 0;
-      const hit = this.runner.hitTime > 0;
-      const angle = hit ? -.12 : flapping ? -.18 : jumping ? -.1 : falling ? .12 : 0;
-      ctx.translate(-runnerSprite[0].length * pixel / 2, -runnerSprite.length * pixel / 2 + (flapping ? -2 : bob)); ctx.rotate(angle);
-      ctx.globalAlpha = .16; ctx.fillStyle = hit ? '#ff746c' : '#98f58c';
-      ctx.fillRect(4 * pixel, 2 * pixel, 7 * pixel, 3 * pixel);
-      ctx.fillRect(2 * pixel, 5 * pixel, 11 * pixel, 4 * pixel);
-      ctx.fillRect(4 * pixel, 10 * pixel, 7 * pixel, 2 * pixel);
-      ctx.globalAlpha = .72; ctx.fillStyle = hit ? '#ff7b78' : '#baff75';
-      ctx.fillRect(2 * pixel, 2 * pixel, pixel, pixel); ctx.fillRect(12 * pixel, 4 * pixel, pixel, pixel);
-      ctx.fillRect(1 * pixel, 7 * pixel, pixel, pixel); ctx.fillRect(13 * pixel, 8 * pixel, pixel, pixel);
-      const eyeColor = hit ? '#fff1da' : '#f3ffcf';
-      const bodyColor = hit ? '#783f55' : '#145d58';
+      const pixel = 3;
+      const bob = Math.round(Math.sin(this.runner.animationTime * 4) * 1);
+      const flapping = this.runner.flapTime > 0; const hit = this.runner.hitTime > 0;
+      const angle = hit ? -.1 : flapping ? -.08 : Math.max(-.06, Math.min(.1, this.runner.velocityY / 2400));
+      ctx.translate(-runnerSprite[0].length * pixel / 2, -runnerSprite.length * pixel / 2 + (flapping ? -pixel : bob)); ctx.rotate(angle);
+      const bodyColor = hit ? '#783f55' : '#17645e';
       const highlight = hit ? '#ffad89' : '#d9ff98';
+      const eyeColor = hit ? '#fff1da' : '#f3ffcf';
+      const blink = this.runner.animationTime % 3.8 < .13;
+      ctx.globalAlpha = .22; ctx.fillStyle = hit ? '#ff766f' : '#77eed4';
+      ctx.fillRect(3 * pixel, pixel, 6 * pixel, pixel);
+      ctx.fillRect(pixel, 4 * pixel, pixel, 2 * pixel);
+      ctx.fillRect(10 * pixel, 4 * pixel, pixel, 2 * pixel);
+      ctx.globalAlpha = 1;
       for (let row = 0; row < runnerSprite.length; row++) {
-        if ((jumping || falling) && row >= 12) continue;
         const bits = runnerSprite[row];
         for (let column = 0; column < bits.length; column++) {
           const cell = bits[column];
@@ -670,29 +655,23 @@
           if (cell === 'N') ctx.fillStyle = hit ? '#ff8376' : '#a8f36f';
           else if (cell === 'B') ctx.fillStyle = bodyColor;
           else if (cell === 'H') ctx.fillStyle = highlight;
-          else if (cell === 'E' || cell === 'W') ctx.fillStyle = eyeColor;
-          else if (cell === 'P') ctx.fillStyle = '#102e3a';
-          else if (cell === 'C') ctx.fillStyle = falling ? '#67d9eb' : jumping ? '#f5f486' : '#58dace';
-          else ctx.fillStyle = '#226f68';
-          const legOffset = row >= 12 && !jumping && !falling ? (runFrame ? (column < 7 ? 2 : 0) : (column < 7 ? 0 : 2)) : 0;
-          ctx.fillRect(column * pixel, row * pixel + legOffset, pixel, pixel);
+          else if (cell === 'E') {
+            if (blink) continue;
+            ctx.fillStyle = eyeColor;
+          } else if (cell === 'P') {
+            if (blink) continue;
+            ctx.fillStyle = '#102e3a';
+          }
+          ctx.fillRect(column * pixel, row * pixel, pixel, pixel);
         }
       }
-      if (jumping) {
-        ctx.fillStyle = hit ? '#ff9f86' : '#dcff9c';
-        ctx.fillRect(2 * pixel, 9 * pixel, 2 * pixel, pixel); ctx.fillRect(11 * pixel, 9 * pixel, 2 * pixel, pixel);
-        ctx.fillRect(4 * pixel, 12 * pixel, 3 * pixel, 2 * pixel); ctx.fillRect(8 * pixel, 12 * pixel, 3 * pixel, 2 * pixel);
-      } else if (falling) {
-        ctx.fillStyle = hit ? '#ff9f86' : '#8ee6ec';
-        ctx.fillRect(1 * pixel, 7 * pixel, 2 * pixel, pixel); ctx.fillRect(12 * pixel, 7 * pixel, 2 * pixel, pixel);
-        ctx.fillRect(3 * pixel, 12 * pixel, 2 * pixel, 3 * pixel); ctx.fillRect(10 * pixel, 12 * pixel, 2 * pixel, 3 * pixel);
+      if (blink) {
+        ctx.fillStyle = hit ? '#ffad89' : '#d9ff98';
+        ctx.fillRect(4 * pixel, 5 * pixel, 2 * pixel, 2);
+        ctx.fillRect(7 * pixel, 5 * pixel, 2 * pixel, 2);
       }
-      ctx.globalAlpha = .82; ctx.fillStyle = hit ? '#ff9f86' : '#dcff9c';
-      const tail = Math.floor(time * 10) % 3;
-      ctx.fillRect(-tail, 27, 3, 3); ctx.globalAlpha = .55; ctx.fillRect(-5 - tail, 30, 3, 3);
-      ctx.globalAlpha = .32; ctx.fillRect(-10 + tail, 33, 3, 3);
-      ctx.globalAlpha = .68; ctx.fillStyle = hit ? '#ffc09a' : '#6ce2d0';
-      ctx.fillRect(-pixel, 5 * pixel, pixel, 2 * pixel); ctx.fillRect(13 * pixel, 7 * pixel, pixel, 2 * pixel);
+      ctx.globalAlpha = .76; ctx.fillStyle = hit ? '#ffc09a' : '#6ce2d0';
+      ctx.fillRect(2 * pixel, 2 * pixel, pixel, pixel); ctx.fillRect(9 * pixel, 7 * pixel, pixel, pixel);
       ctx.restore();
     }
     drawReaction(ctx, stage, state, time, camera, transition) {

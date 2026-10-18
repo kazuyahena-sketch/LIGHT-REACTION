@@ -8,10 +8,10 @@
     { id: 'nadp', formula: 'NADP', correct: false }
   ];
   class JourneyController {
-    constructor(checkpoints, stages, state, runner, camera, minigames, panel, events, vfx, audio) {
+    constructor(checkpoints, stages, state, runner, camera, minigames, panel, events, vfx, audio, renderer) {
       this.checkpoints = checkpoints; this.stages = stages; this.state = state;
       this.runner = runner; this.camera = camera; this.minigames = minigames; this.panel = panel;
-      this.events = events; this.vfx = vfx; this.audio = audio;
+      this.events = events; this.vfx = vfx; this.audio = audio; this.renderer = renderer;
       this.worldStarted = false; this.mode = 'intro'; this.activeCheckpointIndex = -1;
       this.followPoint = { x: 0, y: 450 };
       this.followPlayer = () => { this.followPoint.x = this.runner.player.x + 260; return this.followPoint; };
@@ -99,7 +99,9 @@
         return;
       }
       if (this.mode === 'running') {
-        this.runner.update(dt);
+        const nextX = this.runner.player.x + this.runner.speed * dt;
+        const pathBounds = this.renderer?.journeyPathBoundsAt(this.camera, nextX);
+        this.runner.update(dt, pathBounds);
         if (this.mode !== 'running') return;
         const checkpoint = this.nextCheckpoint;
         if (checkpoint && this.runner.running && this.runner.player.x >= checkpoint.x - checkpoint.approachOffset) {

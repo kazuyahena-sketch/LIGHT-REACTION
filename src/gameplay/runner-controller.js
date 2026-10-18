@@ -3,8 +3,8 @@
     constructor(events) {
       this.events = events;
       this.player = { x: 80, y: 444, radius: 13 };
-      this.baseY = 444; this.velocityY = 0; this.speed = 218; this.gravity = 760; this.flapVelocity = -315; this.energy = 3;
-      this.flightBounds = { top: 96, bottom: 804 };
+      this.baseY = 444; this.velocityY = 0; this.speed = 218; this.gravity = 760; this.flapVelocity = -157.5; this.energy = 3;
+      this.flightBounds = { top: -48, bottom: 948 };
       this.running = false; this.invulnerable = 0; this.held = new Set();
       this.animationTime = 0; this.hitTime = 0; this.flapTime = 0;
     }
@@ -33,7 +33,7 @@
       this.events.emit('runner:flap', { x: this.player.x, y: this.player.y });
       return true;
     }
-    update(dt) {
+    update(dt, pathBounds = null) {
       if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);
       this.hitTime = Math.max(0, this.hitTime - dt);
       if (!this.running) return;
@@ -42,7 +42,14 @@
       this.player.x += this.speed * dt;
       this.velocityY += this.gravity * dt;
       this.player.y += this.velocityY * dt;
-      if (this.player.y < this.flightBounds.top || this.player.y > this.flightBounds.bottom) {
+      const touchesPathBoundary = pathBounds && (
+        this.player.y - this.player.radius <= pathBounds.top
+        || this.player.y + this.player.radius >= pathBounds.bottom
+      );
+      const outsideFlightBounds = !pathBounds && (
+        this.player.y < this.flightBounds.top || this.player.y > this.flightBounds.bottom
+      );
+      if (touchesPathBoundary || outsideFlightBounds) {
         this.events.emit('runner:flight-boundary', { x: this.player.x, y: this.player.y });
       }
     }
