@@ -52,6 +52,7 @@
       this.electronRail = stations.filter(station => reactionRailIds.has(station.id)).map(station => ({ x: station.x, y: station.y }));
       this.width = 1; this.height = 1; this.dpr = 1; this.scale = 1; this.stars = Array.from({ length: 95 }, (_, index) => ({ x: (index * 193 + 37) % 1440, y: (index * 317 + 59) % 900, r: .4 + (index % 4) * .18, p: index * .41 }));
       this.journeyMode = false;
+      this.openingPrepared = false;
       this.backdropCanvas = document.createElement('canvas');
       this.journeyBackdropCanvas = document.createElement('canvas');
       this.macroAmbientCanvas = document.createElement('canvas');
@@ -60,6 +61,23 @@
       this.reactionBaseCanvas = null;
       this.reactionBaseReady = false;
       this.proteinCache = new Map();
+      this.resize(); window.addEventListener('resize', () => this.resize());
+    }
+    async prepareForOpening(onStatus = () => {}) {
+      if (this.openingPrepared) return;
+      const steps = [
+        ['กำลังเตรียมฉากเซลล์และ Chloroplast...', () => this.buildMacroCache()],
+        ['กำลังเตรียมฉาก Thylakoid และ Light Reaction...', () => { this.buildMembranePattern(); this.buildReactionBaseCache(); }],
+        ['กำลังเตรียมฉากเส้นทางอิเล็กตรอน...', () => { this.buildJourneyBackdrop(); this.buildProteinCaches(); }]
+      ];
+      for (const [message, prepare] of steps) {
+        onStatus(message);
+        await new Promise(resolve => window.setTimeout(resolve, 0));
+        prepare();
+      }
+      this.openingPrepared = true;
+    }
+    buildMembranePattern() {
       this.membranePattern = document.createElement('canvas'); this.membranePattern.width = 960; this.membranePattern.height = 190;
       const pattern = this.membranePattern.getContext('2d');
       pattern.strokeStyle = 'rgba(107,220,205,.14)'; pattern.setLineDash([2, 12]);
@@ -71,7 +89,6 @@
         pattern.fillStyle = 'rgba(195,244,177,.24)'; pattern.fillRect(x + 8, 38, 3, 4); pattern.fillRect(x + 30, 147, 3, 4);
         pattern.fillStyle = 'rgba(54,129,127,.4)'; pattern.fillRect(x + 13, 45, 2, 96); pattern.fillRect(x + 35, 50, 2, 86);
       }
-      this.resize(); this.buildJourneyBackdrop(); this.buildMacroCache(); this.buildReactionBaseCache(); this.buildProteinCaches(); window.addEventListener('resize', () => this.resize());
     }
     resize() {
       const rect = this.canvas.getBoundingClientRect(); this.width = Math.max(1, rect.width); this.height = Math.max(1, rect.height);

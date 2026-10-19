@@ -16,8 +16,11 @@
     <section class="intro-screen" id="intro-screen" aria-label="เริ่มเกม">
       <div class="intro-grid" aria-hidden="true"></div><div class="intro-orbit orbit-a" aria-hidden="true"></div><div class="intro-orbit orbit-b" aria-hidden="true"></div>
       <div class="intro-copy"><div class="intro-kicker"><i></i> สำรวจโลกจุลภาค · ระบบชีววิทยาพร้อมทำงาน</div><p class="intro-overline">ปฏิกิริยาที่ต้องใช้แสง</p><h2>LIGHT REACTION<span>:</span><br><em>ELECTRON TRAIN</em></h2><p class="intro-description">เข้าสู่โลกของโมเลกุลที่มีชีวิต ตามเส้นทางของแสง อิเล็กตรอน และโปรตอนจาก Thylakoid ไปสู่พลังงานที่เซลล์นำไปใช้</p>
-        <button class="start-game-button" type="button" data-start-game><span>เริ่มเกม</span><i>↗</i></button><div class="intro-footer"><span>การสังเคราะห์ด้วยแสง · ภารกิจสำรวจแบบโต้ตอบ</span><span>01 <b>/</b> 01</span></div></div>
+        <button class="start-game-button" type="button" data-start-game><span>เริ่มเกม</span><i>↗</i></button><p class="intro-error" data-start-error role="alert" hidden></p><div class="intro-footer"><span>การสังเคราะห์ด้วยแสง · ภารกิจสำรวจแบบโต้ตอบ</span><span>01 <b>/</b> 01</span></div></div>
       <div class="intro-molecule molecule-a" aria-hidden="true">e⁻</div><div class="intro-molecule molecule-b" aria-hidden="true">H⁺</div><div class="intro-molecule molecule-c" aria-hidden="true">O₂</div>
+    </section>
+    <section class="game-loading" id="game-loading" role="status" aria-live="polite" aria-atomic="true" aria-busy="false" hidden>
+      <div class="game-loading-content"><span>PREPARING THE JOURNEY</span><p data-loading-message>กำลังเตรียมฉาก...</p></div>
     </section>
 
     <header class="topbar glass-panel">
