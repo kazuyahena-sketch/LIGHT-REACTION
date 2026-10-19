@@ -1,11 +1,9 @@
 (function (root) {
   class OpeningSequence {
-    constructor(element, stageManager, events, state, renderer, loadingElement) {
+    constructor(element, stageManager, events, state) {
       this.element = element; this.shell = element.closest('.game-shell'); this.stageManager = stageManager; this.events = events; this.state = state;
-      this.renderer = renderer; this.loadingElement = loadingElement; this.loadingMessage = loadingElement.querySelector('[data-loading-message]');
-      this.startButton = element.querySelector('[data-start-game]'); this.startError = element.querySelector('[data-start-error]');
-      this.active = true; this.loading = false; this.pendingStart = false; this.tourRunning = false; this.nextTourTimer = null;
-      this.startButton.addEventListener('click', () => this.start());
+      this.active = true; this.pendingStart = false; this.tourRunning = false; this.nextTourTimer = null;
+      element.querySelector('[data-start-game]').addEventListener('click', () => this.start());
       events.on('stage:arrived', stage => this.onArrival(stage));
       events.on('macro:journey-complete', ({ nextIndex }) => {
         if (this.tourRunning) this.scheduleTourAdvance(nextIndex);
@@ -14,26 +12,8 @@
       events.on('game:reset', () => { this.clearTimer(); this.refreshStartLabel(); });
       this.refreshStartLabel();
     }
-    async start() {
-      if (!this.active || this.loading || this.tourRunning) return;
-      this.loading = true; this.startButton.disabled = true; this.startError.hidden = true;
-      try {
-        if (!this.renderer.openingPrepared) {
-          this.loadingElement.hidden = false;
-          this.loadingElement.setAttribute('aria-busy', 'true');
-          await this.renderer.prepareForOpening(message => { this.loadingMessage.textContent = message; });
-          this.loadingElement.hidden = true;
-        }
-      } catch (error) {
-        this.loadingElement.hidden = true;
-        this.startError.textContent = 'เตรียมฉากไม่สำเร็จ กรุณาลองเริ่มเกมอีกครั้ง';
-        this.startError.hidden = false;
-        console.error('Unable to prepare game scenes before the opening sequence.', error);
-        return;
-      } finally {
-        this.loading = false; this.startButton.disabled = false;
-        this.loadingElement.setAttribute('aria-busy', 'false');
-      }
+    start() {
+      if (!this.active) return;
       this.pendingStart = true; this.tourRunning = true;
       this.shell.classList.add('tour-mode');
       this.element.classList.add('launching');
@@ -73,7 +53,6 @@
     show() {
       this.clearTimer(); this.active = true; this.pendingStart = false; this.tourRunning = false;
       this.element.hidden = false; this.element.classList.remove('launching', 'leaving');
-      this.startError.hidden = true; this.startButton.disabled = false; this.loadingElement.hidden = true;
       this.shell.classList.remove('tour-mode', 'runner-mode');
       this.refreshStartLabel();
     }

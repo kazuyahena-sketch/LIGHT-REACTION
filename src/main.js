@@ -26,7 +26,7 @@
       this.camera.x = initialStage.camera.x; this.camera.y = initialStage.camera.y; this.camera.zoom = initialStage.camera.zoom;
       this.animator.stage = initialStage;
       this.hud = new LR.HUDController(LR.Stages, this.state, this.events, this.explanation, () => this.advance(), () => this.stageManager.isTransitioning, () => this.stageManager.canAdvance(), this.journey, this.runner);
-      this.intro = new LR.OpeningSequence(document.getElementById('intro-screen'), this.stageManager, this.events, this.state, this.renderer, document.getElementById('game-loading'));
+      this.intro = new LR.OpeningSequence(document.getElementById('intro-screen'), this.stageManager, this.events, this.state);
       this.events.on('game:restart-request', () => this.stageManager.restart());
       this.input = new LR.InputController(this.canvas, this.camera, this.stageManager, this.renderer, () => this.renderer.viewport(), message => this.hud.showToast(message), () => this.intro.active, this.runner, this.journey);
       this.events.on('journey:world-start', () => { this.renderer.setJourneyMode(true); this.shell.classList.add('runner-mode'); if (this.journey.gameFinished) this.shell.classList.add('journey-complete'); });
