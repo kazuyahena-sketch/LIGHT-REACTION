@@ -5,6 +5,7 @@
     constructor(eventBus, stageCount) {
       this.eventBus = eventBus;
       this.stageCount = stageCount;
+      this.saveBatchDepth = 0;
       this.data = this.load();
     }
     load() {
@@ -17,7 +18,10 @@
             products: Array.isArray(saved.products) ? saved.products.filter(item => validProducts.includes(item)) : [],
             objectives: Array.isArray(saved.objectives) ? [...new Set(saved.objectives.filter(item => typeof item === 'string'))] : [],
             lumenProtons: Math.max(0, Math.min(32, Number(saved.lumenProtons) || 0)), electronSupply: Math.max(0, Math.min(8, Number(saved.electronSupply) || 0)),
-            protonFlowActive: Boolean(saved.protonFlowActive),
+            // Proton flow is an in-progress animation, not checkpointed progress.
+            // A page reload must resume from the last saved checkpoint with the
+            // original lumen resources and a stopped synthase.
+            protonFlowActive: false,
             checkpointId: typeof saved.checkpointId === 'string' ? saved.checkpointId : null,
             checkpointX: Number.isFinite(saved.checkpointX) ? Math.max(0, saved.checkpointX) : 80
           };
@@ -71,9 +75,9 @@
       if (added) { this.save(); this.eventBus.emit('biology:protons-added', { amount: added, total: this.data.lumenProtons, source }); this.eventBus.emit('state:changed', this.snapshot()); }
       return added;
     }
-    consumeLumenProton(source = 'atp-synthase') {
+    consumeLumenProton(source = 'atp-synthase', persist = true) {
       if (this.data.lumenProtons <= 0) return false;
-      this.data.lumenProtons -= 1; this.save();
+      this.data.lumenProtons -= 1; if (persist) this.save();
       this.eventBus.emit('biology:proton-consumed', { total: this.data.lumenProtons, source }); this.eventBus.emit('state:changed', this.snapshot());
       return true;
     }
@@ -88,16 +92,27 @@
       this.eventBus.emit('state:changed', this.snapshot()); return true;
     }
     setProtonFlowActive(active) {
-      this.data.protonFlowActive = Boolean(active); this.save(); this.eventBus.emit('biology:proton-flow-state', this.data.protonFlowActive);
+      // This flag only drives animation. Checkpoints persist it as false so an
+      // interrupted flow cannot be restored without its controller progress.
+      this.data.protonFlowActive = Boolean(active); this.eventBus.emit('biology:proton-flow-state', this.data.protonFlowActive);
+    }
+    beginSaveBatch() { this.saveBatchDepth += 1; }
+    commitSaveBatch() {
+      if (this.saveBatchDepth <= 0) return false;
+      this.saveBatchDepth -= 1;
+      if (this.saveBatchDepth === 0) this.save();
+      return true;
     }
     reset() {
       this.data = { currentIndex: 0, furthestIndex: 0, products: [], objectives: [], lumenProtons: 0, electronSupply: 0, protonFlowActive: false, checkpointId: null, checkpointX: 80 };
+      this.saveBatchDepth = 0;
       this.save(); this.eventBus.emit('state:changed', this.snapshot()); this.eventBus.emit('game:reset');
     }
     snapshot() {
       return { currentIndex: this.data.currentIndex, furthestIndex: this.data.furthestIndex, products: [...this.data.products], objectives: [...this.data.objectives], lumenProtons: this.data.lumenProtons, electronSupply: this.data.electronSupply, protonFlowActive: this.data.protonFlowActive, checkpointId: this.data.checkpointId, checkpointX: this.data.checkpointX };
     }
     save() {
+      if (this.saveBatchDepth > 0) return;
       try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.data)); }
       catch (_) { /* The game remains playable without persistent storage. */ }
     }

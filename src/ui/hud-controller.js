@@ -24,6 +24,7 @@
         this.showToast('CHECKPOINT SAVED · ' + checkpoint.label, '');
       });
       eventBus.on('journey:continued', () => this.updateJourney());
+      eventBus.on('journey:flight-feedback', ({ message }) => this.showToast(message, ''));
       this.refresh(); this.updateJourney();
     }
     refresh() {
@@ -63,9 +64,19 @@
       } else if (this.journey.mode === 'respawning') {
         e.runnerStation.textContent = 'ปรับระดับการบิน · กลับจุดเซฟ';
         e.runnerObjective.textContent = 'กำลังเริ่มการเดินทางใหม่จากจุดบันทึกล่าสุด';
+      } else if (this.journey.mode === 'flight-tutorial') {
+        e.runnerStation.textContent = 'ELECTRON FLIGHT · คู่มือ Align & Pass';
+        e.runnerObjective.textContent = 'ดูตัวอย่างการจัดเลนและผ่านช่องก่อนเริ่มควบคุม';
+      } else if (this.journey.mode === 'flight-gate') {
+        const target = this.journey.flightGate; const nextTarget = this.journey.nextFlightGate; const lane = ['บน', 'กลาง', 'ล่าง'];
+        e.runnerStation.textContent = 'จัดตำแหน่ง · ช่อง ' + String(this.journey.flightGateIndex + 1).padStart(2, '0') + ' / ' + this.journey.flightGateCount;
+        e.runnerObjective.textContent = 'เป้าหมายเลน' + lane[target.lane] + ' · ตอนนี้อยู่เลน' + lane[this.runner.lane] + (nextTarget ? ' · ถัดไปเลน' + lane[nextTarget.lane] : '') + ' · ↑ / ↓ ปรับ · กด SPACE หรือแตะเพื่อผ่าน';
       } else if (this.journey.mode === 'running') {
         e.runnerStation.textContent = 'ELECTRON FLIGHT · ' + cp.label;
-        e.runnerObjective.textContent = 'กด SPACE / คลิก / แตะ เพื่อกระดกขึ้น · ปล่อยให้แรงโน้มถ่วงพาลง';
+        const gate = this.journey.flightGate; const nextTarget = this.journey.nextFlightGate; const lane = ['บน', 'กลาง', 'ล่าง'];
+        e.runnerObjective.textContent = gate
+          ? 'ช่อง ' + String(this.journey.flightGateIndex + 1).padStart(2, '0') + ' / ' + this.journey.flightGateCount + ' · เป้าหมายเลน' + lane[gate.lane] + (nextTarget ? ' · ถัดไปเลน' + lane[nextTarget.lane] : '') + ' · คุณอยู่เลน' + lane[this.runner.lane] + ' · ↑ / ↓ ปรับตำแหน่ง'
+          : 'เข้าใกล้ ' + cp.label + ' · ↑ / ↓ ปรับตำแหน่งอิเล็กตรอน';
       } else {
         e.runnerStation.textContent = 'ถัดไป · ' + cp.label;
         e.runnerObjective.textContent = cp.copy + ' ควบคุมระดับการลอยตัวเพื่อเดินทางไปยังโปรตีนถัดไป';

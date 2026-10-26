@@ -10,7 +10,7 @@ This is a browser Canvas 2D project rather than a Godot project, so Godot's prof
 
 - The game loop stays idle on the start screen, pauses when the document is hidden, and stops after the completion effects finish. During play, HUD values refresh at about 12.5 Hz instead of writing DOM values every frame.
 - The cinematic camera tour normally uses up to 2× device-pixel ratio, with the Granum → Thylakoid → Light Reaction transitions capped at 1.5×; the side-scrolling Canvas remains capped at 1×. HTML controls and labels remain browser-rendered and sharp.
-- The static backdrop, membrane pattern, and stable reaction-scene base are cached. Macro crossfades draw their shared scene once; off-screen stations and hazards are culled, and Canvas shadow blur is limited to preserve the molecular glow without a full-screen effect.
+- The static backdrop, membrane pattern, and stable reaction-scene base are cached. Macro crossfades draw their shared scene once; off-screen stations and flight gates are culled, and Canvas shadow blur is limited to preserve the molecular glow without a full-screen effect.
 - The project has no external textures, shader files, or always-running particle nodes. The intro still uses its zoom tour, and the side world keeps focused electron, proton, and station effects.
 - Thai UI uses the system Leelawadee UI / Tahoma font stack and keeps scientific names such as PSII, PQ, FNR, ATP, NADPH, and H⁺ in their standard form.
 
@@ -22,20 +22,21 @@ main.js constructs the application subsystems and owns the frame loop. It advanc
 
 - OpeningSequence keeps the continuous zoom from CELL → CHLOROPLAST → GRANUM → THYLAKOID → LIGHT REACTION. Each of the four macro stages pauses on its scene for a roughly 20–40 second interactive challenge before the camera moves inward again. A saved reaction checkpoint skips those first-run challenges on resume.
 - MacroJourneyController owns the four distinct macro challenges; MacroChallengePanel renders them over the live Canvas view so the player keeps seeing the camera journey.
-- RunnerController owns continuous forward movement, jump and dive physics, speed adjustment, collision charge, and checkpoint respawn.
-- JourneyController owns the nine checkpoint route, station arrival, mini-game lifecycle, biological outcomes, checkpoint saves, and final product handoff.
+- RunnerController owns continuous forward movement and its three-lane position. JourneyController owns the nine checkpoint route, Align & Pass gates, station arrival, mini-game lifecycle, biological outcomes, checkpoint saves, and final product handoff.
 - MinigameHost manages isolated station interactions; MinigamePanel renders their DOM controls and feedback.
 - GameState persists completed objectives, products, electron supply, lumen protons, the latest checkpoint ID, and the respawn position in browser local storage.
 - CameraController and SceneTransition provide smooth zoom, focus, follow, shake, blur, and camera travel. The macro tour and side-scrolling reaction world use the same camera.
 - WorldRenderer draws the macro tour and continuous stroma / thylakoid membrane / lumen environment. VFXHooks and AudioHooks expose replaceable effects and sound cues.
-- HUDController reports the next station, checkpoint progress, redox charge, H⁺ count, products, and controls.
+- HUDController reports the next station, gate and checkpoint progress, redox charge, H⁺ count, products, and controls.
 
 ## Journey checkpoints
 
 The player moves automatically to the right and stops before each station. Each station opens one biology-specific interaction. Completing it updates the reaction state, marks the station complete, saves a checkpoint, and resumes the route. Progress survives closing and reopening the browser.
 
+The Electron Flight route adds three visible lane gates on the way to each biological checkpoint. The electron stops at the current gate; Up / Down selects its lane and Space or the on-screen pass button continues the route only when that lane matches the target. The next gate is shown ahead. This travel layer does not change checkpoint order, stage progress, or reaction resources.
+
 1. PSII / oxygen-evolving complex — time eight photon captures to split water.
-2. Plastoquinone (PQ) — steer the electron through three redox gates.
+2. Plastoquinone (PQ) — align the electron with each redox lane, then pass three gates.
 3. Cytochrome b₆f — release four pump strokes in the visible pressure window to move H⁺ into the lumen.
 4. Plastocyanin (PC) — guide the carrier through the lumen current.
 5. PSI — use the reflected ray to align the second photon with the PSI sensor; the ray visibly changes direction with the mirror.
@@ -44,7 +45,7 @@ The player moves automatically to the right and stops before each station. Each 
 8. ATP synthase — align three coupling rings, then send four lumen protons through the turbine to form ATP.
 9. Calvin cycle — deliver ATP and NADPH. O₂ is shown leaving the system after water splitting.
 
-Reactive oxygen species (¹O₂ / ROS) are hazards along the travel route. Three collisions consume the electron's redox charge; losing all three returns the player to the latest saved checkpoint.
+Leaving the visible route bounds returns the electron to the latest saved checkpoint. Passing a gate from the wrong lane gives feedback and holds the electron at that gate; it does not award progress or change biological resources.
 
 ## Reaction-state flow
 
@@ -61,8 +62,8 @@ Reactive oxygen species (¹O₂ / ROS) are hazards along the travel route. Three
     src/
       main.js
       core/         state, event bus, stage tour, camera, transition, input
-      data/         macro stages, world stations, journey checkpoints and hazards
-      gameplay/    runner movement, macro tour challenges, and checkpoint journey controller
+      data/         macro stages, world stations, and journey checkpoints
+      gameplay/    runner lanes, macro tour challenges, and checkpoint journey controller
       minigame/    mini-game host lifecycle
       world/        Canvas 2D macro and side-scrolling world rendering
       animation/   biology animation hooks

@@ -2,8 +2,8 @@
   const firstCheckpointX = 6080;
   const checkpointSpacing = 5900;
   const checkpoints = [
-    { id: 'psii', label: 'PSII · OEC', stationId: 'psii', stageId: 'psii', completedStageId: 'water-splitting', game: 'water', copy: 'กดรับพลังงานให้ตรงจังหวะโฟตอน 5 ครั้ง เพื่อกระตุ้น OEC และเติมอิเล็กตรอนให้ PSII' },
-    { id: 'pq', label: 'PLASTOQUINONE · PQ', stationId: 'pq', stageId: 'pq', completedStageId: 'pq', game: 'pq-route', copy: 'บังคับตัวพาอิเล็กตรอนผ่านช่องรีดอกซ์ที่เปิดอยู่ให้ครบ 3 จุด' },
+    { id: 'psii', label: 'PSII · OEC', stationId: 'psii', stageId: 'psii', completedStageId: 'water-splitting', game: 'water', copy: 'กดรับพลังงานให้ตรงจังหวะโฟตอน 8 ครั้ง เพื่อกระตุ้น OEC และเติมอิเล็กตรอนให้ PSII' },
+    { id: 'pq', label: 'PLASTOQUINONE · PQ', stationId: 'pq', stageId: 'pq', completedStageId: 'pq', game: 'pq-route', copy: 'จัดเลนอิเล็กตรอนให้ตรงช่องรีดอกซ์ แล้วกดผ่านให้ครบ 3 จุด' },
     { id: 'cytochrome', label: 'CYTOCHROME b₆f', stationId: 'cytochrome', stageId: 'cytochrome-complex', completedStageId: 'cytochrome-complex', game: 'proton-pump', copy: 'จับจังหวะปั๊มให้ครบ 4 รอบ เพื่อย้าย H⁺ จาก Stroma เข้า Lumen' },
     { id: 'pc', label: 'PLASTOCYANIN · PC', stationId: 'pc', stageId: 'pc', completedStageId: 'pc', game: 'pc-current', copy: 'พา Plastocyanin ไปตามกระแสใน Lumen พร้อมนำอิเล็กตรอนไปยัง PSI' },
     { id: 'psi', label: 'PSI · P700', stationId: 'psi', stageId: 'psi', completedStageId: 'mirror', game: 'mirror', copy: 'รับโฟตอนอีกครั้ง แล้วปรับกระจกให้ส่งอิเล็กตรอนไปยัง Fd' },

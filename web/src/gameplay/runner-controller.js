@@ -5,17 +5,28 @@
       this.player = { x: 80, y: 444, radius: 13 };
       this.baseY = 444; this.velocityY = 0; this.speed = 218; this.gravity = 760; this.flapVelocity = -157.5; this.energy = 3;
       this.flightBounds = { top: -48, bottom: 948 };
-      this.running = false; this.invulnerable = 0; this.held = new Set();
+      this.running = false; this.invulnerable = 0; this.held = new Set(); this.lane = 1;
       this.animationTime = 0; this.hitTime = 0; this.flapTime = 0;
     }
     start(x = 80) {
       this.player.x = Math.max(80, x); this.player.y = this.baseY; this.velocityY = 0;
-      this.running = true; this.invulnerable = 0; this.held.clear(); this.hitTime = 0; this.flapTime = 0;
+      this.lane = 1; this.running = true; this.invulnerable = 0; this.held.clear(); this.hitTime = 0; this.flapTime = 0;
       this.events.emit('runner:started', { x: this.player.x });
     }
     pause() { this.running = false; this.held.clear(); this.velocityY = 0; this.player.y = this.baseY; }
     resume() { this.running = true; this.held.clear(); this.events.emit('runner:resumed', { x: this.player.x }); }
-    setX(x) { this.player.x = Math.max(0, x); this.player.y = this.baseY; this.velocityY = 0; this.flapTime = 0; }
+    setX(x) { this.player.x = Math.max(0, x); this.player.y = this.baseY; this.velocityY = 0; this.flapTime = 0; this.lane = 1; }
+    laneY(pathBounds = null) {
+      if (!pathBounds) return this.baseY + (this.lane - 1) * 52;
+      const top = pathBounds.top + 30; const bottom = pathBounds.bottom - 30;
+      return [top, (top + bottom) / 2, bottom][this.lane];
+    }
+    setLane(lane, pathBounds = null, snap = false) {
+      this.lane = Math.max(0, Math.min(2, Math.round(lane)));
+      if (snap) this.player.y = this.laneY(pathBounds);
+      return this.lane;
+    }
+    holdAtGate() { this.running = false; this.held.clear(); this.velocityY = 0; }
     keyDown(code, repeat = false) {
       if (!this.running) return false;
       if (code === 'Space') {
@@ -36,12 +47,16 @@
     update(dt, pathBounds = null) {
       if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);
       this.hitTime = Math.max(0, this.hitTime - dt);
-      if (!this.running) return;
+      if (!this.running) {
+        const targetY = this.laneY(pathBounds);
+        this.player.y += (targetY - this.player.y) * Math.min(1, dt * 12);
+        return;
+      }
       this.animationTime += dt;
       this.flapTime = Math.max(0, this.flapTime - dt);
       this.player.x += this.speed * dt;
-      this.velocityY += this.gravity * dt;
-      this.player.y += this.velocityY * dt;
+      const targetY = this.laneY(pathBounds);
+      this.player.y += (targetY - this.player.y) * Math.min(1, dt * 12);
       const touchesPathBoundary = pathBounds && (
         this.player.y - this.player.radius <= pathBounds.top
         || this.player.y + this.player.radius >= pathBounds.bottom

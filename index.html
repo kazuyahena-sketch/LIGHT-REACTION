@@ -10,7 +10,7 @@
 </head>
 <body>
   <main class="game-shell" aria-label="เกม LIGHT REACTION: ELECTRON TRAIN">
-    <canvas id="world" aria-label="โลกจำลองเซลล์พืชและปฏิกิริยาใช้แสง"></canvas>
+    <canvas id="world" tabindex="0" aria-label="โลกจำลองเซลล์พืชและปฏิกิริยาใช้แสง"></canvas>
     <div class="vignette" aria-hidden="true"></div>
 
     <section class="intro-screen" id="intro-screen" aria-label="เริ่มเกม">
@@ -39,7 +39,14 @@
       <div class="runner-readouts"><span>ประจุรีดอกซ์ <b id="runner-energy">● ● ●</b></span><span>H⁺ ใน Lumen <b id="runner-protons">0</b></span></div>
       <div class="runner-products"><span id="product-o2">O₂ · —</span><span id="product-nadph">NADPH · —</span><span id="product-atp">ATP · —</span></div>
     </section>
-    <div class="runner-controls" id="runner-controls"><kbd>SPACE / คลิก / แตะ</kbd> กระดกขึ้น · ปล่อยให้ลอยลง</div>
+    <div class="runner-controls" id="runner-controls" aria-label="ควบคุม Electron Flight">
+      <span class="flight-control-copy"><kbd>↑</kbd> / <kbd>↓</kbd> ปรับตำแหน่ง</span>
+      <button type="button" data-flight-action="up" aria-label="เลื่อนอิเล็กตรอนขึ้น">↑</button>
+      <button type="button" data-flight-action="down" aria-label="เลื่อนอิเล็กตรอนลง">↓</button>
+      <span class="flight-control-copy">เมื่อหยุดที่ช่อง <kbd>SPACE</kbd></span>
+      <button type="button" class="flight-pass-button" data-flight-action="pass" aria-label="ผ่านช่องเป้าหมาย">ผ่านช่อง</button>
+      <button type="button" class="flight-help-button" data-flight-action="help" aria-label="เปิดวิธีเล่น Electron Flight">?</button>
+    </div>
 
     <section class="stage-heading" aria-live="polite">
       <div class="eyebrow"><span id="stage-index">00</span><span class="eyebrow-rule"></span><span id="stage-context">เตรียมเข้าสู่เซลล์พืช</span></div>

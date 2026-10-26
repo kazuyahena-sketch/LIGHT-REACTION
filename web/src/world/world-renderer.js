@@ -94,18 +94,14 @@
       const tile = this.journeyBackdropCanvas;
       tile.width = 960; tile.height = 900;
       const ctx = tile.getContext('2d');
-      const stroma = ctx.createLinearGradient(0, 0, 0, 365); stroma.addColorStop(0, '#102a29'); stroma.addColorStop(1, '#183c39');
-      const membrane = ctx.createLinearGradient(0, 360, 0, 560); membrane.addColorStop(0, '#26756a'); membrane.addColorStop(.16, '#123d3e'); membrane.addColorStop(.52, '#12363d'); membrane.addColorStop(.85, '#174b50'); membrane.addColorStop(1, '#318477');
-      const lumen = ctx.createLinearGradient(0, 550, 0, 900); lumen.addColorStop(0, '#133c4d'); lumen.addColorStop(1, '#091c30');
-      ctx.fillStyle = stroma; ctx.fillRect(0, 0, 960, 365); ctx.fillStyle = membrane; ctx.fillRect(0, 365, 960, 190); ctx.fillStyle = lumen; ctx.fillRect(0, 555, 960, 345);
-      const haze = ctx.createRadialGradient(480, 445, 30, 480, 445, 750); haze.addColorStop(0, 'rgba(87,201,164,.12)'); haze.addColorStop(1, 'rgba(5,18,29,0)');
-      ctx.fillStyle = haze; ctx.fillRect(0, 0, 960, 900);
+      ctx.fillStyle = '#12332f'; ctx.fillRect(0, 0, 960, 365); ctx.fillStyle = '#174447'; ctx.fillRect(0, 365, 960, 190); ctx.fillStyle = '#0b2636'; ctx.fillRect(0, 555, 960, 345);
+      ctx.fillStyle = '#1d5952'; ctx.fillRect(0, 365, 960, 8); ctx.fillRect(0, 543, 960, 12);
       for (let x = 18; x < 960; x += 48) {
         ctx.fillStyle = x % 96 ? 'rgba(111,225,197,.08)' : 'rgba(205,246,147,.08)';
         ctx.fillRect(x, 118 + (x % 7) * 21, 3, 3);
         ctx.fillRect(x + 13, 640 + (x % 5) * 18, 2, 2);
       }
-      ctx.fillStyle = 'rgba(123,228,201,.13)'; ctx.fillRect(0, 377, 960, 2); ctx.fillRect(0, 545, 960, 2);
+      ctx.fillStyle = '#337766'; ctx.fillRect(0, 377, 960, 3); ctx.fillRect(0, 540, 960, 3);
       this.drawPixelEnvironment(ctx);
     }
     drawPixelEnvironment(ctx) {
@@ -372,10 +368,41 @@
       const firstTile = Math.floor(left / this.journeyBackdropCanvas.width) * this.journeyBackdropCanvas.width;
       for (let x = firstTile; x < right; x += this.journeyBackdropCanvas.width) ctx.drawImage(this.journeyBackdropCanvas, x, 0);
       this.drawJourneyMembrane(ctx, left, right, time); this.drawJourneyRegions(ctx, left, right, time);
-      this.drawJourneyRail(ctx, left, right, time); this.drawJourneyProtons(ctx, state, time);
+      this.drawJourneyRail(ctx, left, right, time, camera); this.drawJourneyProtons(ctx, state, time);
+      this.drawJourneyFlightGates(ctx, left, right, camera, time);
       this.drawJourneyStations(ctx, left, right, time, state);
       this.drawCheckpointPulse(ctx, time);
       this.drawJourneyProducts(ctx, state, time); this.drawRunnerElectron(ctx, time);
+    }
+    drawJourneyFlightGates(ctx, left, right, camera, time) {
+      const journey = this.journey; if (!journey) return;
+      const drawGate = (gate, index, kind, alpha = 1) => {
+        if (!gate || gate.x < left - 100 || gate.x > right + 100) return;
+        const bounds = this.journeyPathBoundsAt(camera, gate.x); const top = bounds.top + 12; const bottom = bounds.bottom - 12;
+        const laneTop = bounds.top + 30; const laneBottom = bounds.bottom - 30;
+        const laneY = [laneTop, (laneTop + laneBottom) / 2, laneBottom][gate.lane];
+        const gapTop = laneY - 24; const gapBottom = laneY + 24;
+        const color = kind === 'current' ? '#d8f493' : kind === 'passed' ? '#80e6c2' : '#72d3cb';
+        ctx.save(); ctx.globalAlpha = alpha; ctx.shadowColor = color; ctx.shadowBlur = kind === 'current' ? 9 + Math.sin(time * 6) * 2 : 3;
+        ctx.fillStyle = kind === 'current' ? 'rgba(194,235,136,.78)' : 'rgba(105,194,183,.52)';
+        ctx.fillRect(gate.x - 10, top, 5, Math.max(0, gapTop - top)); ctx.fillRect(gate.x + 5, top, 5, Math.max(0, gapTop - top));
+        ctx.fillRect(gate.x - 10, gapBottom, 5, Math.max(0, bottom - gapBottom)); ctx.fillRect(gate.x + 5, gapBottom, 5, Math.max(0, bottom - gapBottom));
+        ctx.shadowBlur = 0; ctx.fillStyle = kind === 'current' ? 'rgba(200,240,139,.16)' : 'rgba(107,205,192,.09)';
+        ctx.fillRect(gate.x - 15, gapTop, 30, 48); ctx.strokeStyle = color; ctx.lineWidth = kind === 'current' ? 2 : 1;
+        ctx.strokeRect(gate.x - 15, gapTop, 30, 48); ctx.fillStyle = color;
+        ctx.fillRect(gate.x - 19, gapTop - 3, 6, 3); ctx.fillRect(gate.x + 13, gapTop - 3, 6, 3);
+        const label = kind === 'current' ? 'ช่อง ' + String(index + 1).padStart(2, '0') + ' · ' + ['บน', 'กลาง', 'ล่าง'][gate.lane]
+          : kind === 'next' ? 'ถัดไป · ' + ['บน', 'กลาง', 'ล่าง'][gate.lane] : 'ผ่านแล้ว';
+        ctx.fillStyle = 'rgba(5,20,25,.91)'; ctx.fillRect(gate.x - 43, gapTop - 22, 86, 15);
+        ctx.fillStyle = color; ctx.font = '8px "DM Mono",Tahoma,monospace'; ctx.textAlign = 'center'; ctx.fillText(label, gate.x, gapTop - 11);
+        ctx.restore();
+      };
+      if (journey.passedFlightGate) {
+        const phase = journey.passedFlightGate.elapsed / .42;
+        drawGate(journey.passedFlightGate, journey.passedFlightGate.index, 'passed', Math.max(0, 1 - phase));
+      }
+      drawGate(journey.flightGate, journey.flightGateIndex, 'current');
+      drawGate(journey.nextFlightGate, journey.flightGateIndex + 1, 'next', .72);
     }
     drawJourneyMembrane(ctx, left, right, time) {
       ctx.save(); ctx.strokeStyle = 'rgba(126,235,205,.52)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(left, 378); ctx.bezierCurveTo(left + 250, 365, right - 300, 394, right, 377); ctx.stroke();
@@ -428,9 +455,20 @@
       }
       ctx.restore();
     }
-    drawJourneyRail(ctx, left, right, time) {
-      ctx.save(); ctx.strokeStyle = 'rgba(118,241,211,.14)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke();
-      ctx.strokeStyle = 'rgba(197,255,150,.46)'; ctx.lineWidth = 1; ctx.setLineDash([3, 16]); ctx.lineDashOffset = -time * 20; ctx.beginPath(); ctx.moveTo(left, 444); ctx.lineTo(right, 444); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    drawJourneyRail(ctx, left, right, time, camera) {
+      ctx.save();
+      for (let lane = 0; lane < 3; lane++) {
+        ctx.beginPath();
+        for (let step = 0; step <= 5; step++) {
+          const x = left + (right - left) * step / 5; const bounds = this.journeyPathBoundsAt(camera, x);
+          const top = bounds.top + 30; const bottom = bounds.bottom - 30; const y = [top, (top + bottom) / 2, bottom][lane];
+          if (step) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        }
+        ctx.strokeStyle = lane === this.runner?.lane ? 'rgba(118,241,211,.19)' : 'rgba(118,214,197,.09)';
+        ctx.lineWidth = lane === 1 ? 1.4 : 1; ctx.setLineDash(lane === 1 ? [3, 16] : [2, 20]);
+        ctx.lineDashOffset = -time * 20; ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.restore();
     }
     drawJourneyProtons(ctx, state, time) {
       for (let i = 0; i < state.lumenProtons; i++) {
