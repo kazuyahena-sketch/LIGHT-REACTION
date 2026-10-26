@@ -14,7 +14,7 @@
       this.runner = runner; this.camera = camera; this.minigames = minigames; this.panel = panel;
       this.events = events; this.vfx = vfx; this.audio = audio; this.renderer = renderer;
       this.worldStarted = false; this.mode = 'intro'; this.activeCheckpointIndex = -1;
-      this.flightGates = this.buildFlightGates(); this.flightGateIndex = 0; this.passedFlightGate = null;
+      this.flightGates = []; this.flightGateIndex = 0; this.passedFlightGate = null;
       this.followPoint = { x: 0, y: 450 };
       this.followPlayer = () => { this.followPoint.x = this.runner.player.x + 260; return this.followPoint; };
       this.stationElapsed = 0; this.waterHits = 0; this.waterPhase = 0; this.fdCharge = 0;
@@ -171,15 +171,7 @@
       if (this.mode === 'running') {
         const nextX = this.runner.player.x + this.runner.speed * dt;
         const pathBounds = this.renderer?.journeyPathBoundsAt(this.camera, nextX);
-        const gate = this.flightGate; const gateStopX = gate ? gate.x - 32 : Infinity;
-        if (gate && nextX >= gateStopX) {
-          const untilGate = clamp((gateStopX - this.runner.player.x) / this.runner.speed, 0, dt);
-          const gateBounds = this.renderer?.journeyPathBoundsAt(this.camera, gateStopX) || pathBounds;
-          this.runner.update(untilGate, gateBounds);
-          this.runner.player.x = gateStopX; this.runner.holdAtGate(); this.mode = 'flight-gate';
-          this.events.emit('journey:flight-gate-arrival', { gate, index: this.flightGateIndex, total: this.flightGates.length });
-          this.events.emit('journey:mode-changed', this.mode);
-        } else this.runner.update(dt, pathBounds);
+        this.runner.update(dt, pathBounds);
         if (this.mode !== 'running') return;
         const checkpoint = this.nextCheckpoint;
         if (checkpoint && this.runner.running && this.runner.player.x >= checkpoint.x - checkpoint.approachOffset) {

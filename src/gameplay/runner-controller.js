@@ -48,15 +48,13 @@
       if (this.invulnerable > 0) this.invulnerable = Math.max(0, this.invulnerable - dt);
       this.hitTime = Math.max(0, this.hitTime - dt);
       if (!this.running) {
-        const targetY = this.laneY(pathBounds);
-        this.player.y += (targetY - this.player.y) * Math.min(1, dt * 12);
         return;
       }
       this.animationTime += dt;
       this.flapTime = Math.max(0, this.flapTime - dt);
       this.player.x += this.speed * dt;
-      const targetY = this.laneY(pathBounds);
-      this.player.y += (targetY - this.player.y) * Math.min(1, dt * 12);
+      this.velocityY += this.gravity * dt;
+      this.player.y += this.velocityY * dt;
       const touchesPathBoundary = pathBounds && (
         this.player.y - this.player.radius <= pathBounds.top
         || this.player.y + this.player.radius >= pathBounds.bottom

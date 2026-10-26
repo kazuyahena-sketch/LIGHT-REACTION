@@ -24,7 +24,12 @@
       const macroPanel = document.getElementById('macro-panel');
       if (macroPanel && !macroPanel.hidden) return;
       if (this.journey?.worldStarted) {
-        if (this.journey.mode === 'flight-tutorial' || this.runner?.running) return;
+        if (this.journey.mode === 'flight-tutorial') return;
+        if (this.runner?.running) {
+          if (event.button !== 0 || event.isPrimary === false) return;
+          this.pointer = event.pointerId; this.dragged = false; this.lastPointer = { x: event.clientX, y: event.clientY };
+          this.canvas.setPointerCapture(event.pointerId); this.runner.flap(); return;
+        }
         if (this.journey.mode === 'flight-gate') {
           if (event.button === 0 && event.isPrimary !== false) { event.preventDefault(); this.journey.passFlightGate(); }
           return;
@@ -80,15 +85,9 @@
           if (['Space', 'ArrowUp', 'ArrowDown'].includes(event.code)) event.preventDefault();
           return;
         }
-        if (['running', 'flight-gate'].includes(this.journey.mode)) {
-          if (event.code === 'ArrowUp' || event.code === 'ArrowDown') {
-            event.preventDefault();
-            if (!event.repeat) this.journey.adjustFlightLane(event.code === 'ArrowUp' ? -1 : 1);
-          } else if (event.code === 'Space') {
-            if (inFlightControls) return;
-            event.preventDefault();
-            if (!event.repeat && this.journey.mode === 'flight-gate') this.journey.passFlightGate();
-          }
+        if (this.runner?.running && this.runner.keyDown(event.code, event.repeat)) event.preventDefault();
+        else if (event.code === 'Space' && this.journey.mode === 'flight-gate' && !inFlightControls) {
+          event.preventDefault(); this.journey.passFlightGate();
         }
         return;
       }
